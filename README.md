@@ -146,11 +146,24 @@ until it completes or fails.
 `app-update.yml` at build time, so there is no server of our own to run. It activates
 whenever the app is packaged (`app.isPackaged`); no env var needed.
 
-Publishing a release: `GH_TOKEN=$(gh auth token) pnpm --filter @smoothcut/desktop package -- --publish always`
-(or set `GH_TOKEN`/`GITHUB_TOKEN` and add `--publish always`) creates/updates the
-GitHub Release for the current `package.json` version and uploads the installers plus
-`latest-mac.yml`/`latest.yml` and `.blockmap` files that `electron-updater` needs to
-detect and diff-download new versions.
+Publishing a release: bump `apps/desktop/package.json`'s `version`, **push a matching
+git tag first** (`git tag vX.Y.Z && git push origin vX.Y.Z`), then run
+`GH_TOKEN=$(gh auth token) pnpm --filter @smoothcut/desktop release` (mac, locally —
+needs the notarization env vars below) and/or trigger the `Release Windows` GitHub
+Actions workflow (`gh workflow run "Release Windows"`, or push the tag — it also
+triggers on `push: tags: v*`).
+
+`publish.releaseType: release` (in `electron-builder.yml`) skips the manual un-draft
+step, but it means electron-builder tries to create a **published** release directly —
+GitHub's API needs the tag to already exist for that, and when electron-builder
+uploads a version's multiple assets concurrently, each upload independently does its
+own "does the release exist, create if not" check. If the tag doesn't exist yet when
+two of those checks race, one can win (creating the tag + release) while the other
+gets `422 Published releases must have a valid tag`, leaving a release that's missing
+whichever asset lost the race — **pushing the tag first avoids the race entirely**,
+since every concurrent check then resolves against an already-existing tag. If it
+still happens, don't just re-run blind: check
+`gh release view vX.Y.Z --json assets` for what's actually missing before retrying.
 
 - [ ] Sign the app (macOS hard requirement — Squirrel.Mac refuses to install updates
       into an unsigned/invalidly-signed app; Windows strongly recommended for
