@@ -2,9 +2,13 @@ name: Release Windows
 
 # No physical Windows machine needed: windows-latest builds the napi-rs
 # addon, packages the NSIS installer, and publishes it as an asset on the
-# existing GitHub Release for the current apps/desktop/package.json version
-# (electron-builder adds to a release that already exists rather than
-# erroring, so this can run independently of the macOS release step).
+# GitHub Release for the current apps/desktop/package.json version. The
+# release script pre-creates that release serially (scripts/ensure-release.mjs)
+# before electron-builder's CONCURRENT asset uploads run — without that, two
+# uploads' independent "create if missing" checks can both succeed and leave
+# two published releases on the same tag (happened on v0.1.3–v0.1.5). This
+# also makes the workflow safe to run concurrently with the local macOS
+# release.
 #
 # Unsigned for now (no Windows code-signing cert yet) — SmartScreen will show
 # a "Windows protected your PC" warning with a "More info -> Run anyway"

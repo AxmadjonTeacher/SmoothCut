@@ -153,29 +153,26 @@ needs the notarization env vars below) and/or trigger the `Release Windows` GitH
 Actions workflow (`gh workflow run "Release Windows"`, or push the tag — it also
 triggers on `push: tags: v*`).
 
-`publish.releaseType: release` (in `electron-builder.yml`) skips the manual un-draft
-step, but it means electron-builder tries to create a **published** release directly —
-GitHub's API needs the tag to already exist for that, and when electron-builder
-uploads a version's multiple assets concurrently, each upload independently does its
-own "does the release exist, create if not" check. If the tag doesn't exist yet when
-two of those checks race, one can win (creating the tag + release) while the other
-gets `422 Published releases must have a valid tag`, leaving a release that's missing
-whichever asset lost the race — **pushing the tag first avoids that race**,
-since every concurrent check then resolves against an already-existing tag.
+Duplicate-release protection: electron-builder uploads a version's assets
+concurrently, and each upload independently does a "find the release, create it if
+missing" check — two of those creates can race past each other and BOTH succeed
+(GitHub hosts multiple published releases on one tag; `releases/latest/download/...`
+then 404s for whichever platform's assets landed on the loser — this shipped as
+duplicate v0.1.3–v0.1.5 releases). The `release` script therefore runs
+`scripts/ensure-release.mjs` first: it refuses to run if the tag has not been pushed
+(a release created for a missing tag would silently mint the tag at the default
+branch HEAD), refuses if the tag already has multiple releases (merge + delete
+first), and otherwise creates the release once, serially — every later
+find-or-create inside electron-builder, in CI or locally, then resolves to that one
+release. This makes the local mac publish and the Windows workflow safe to run
+concurrently.
 
-There is a second race the tag does NOT prevent (it produced duplicate v0.1.3 and
-v0.1.4 releases): when the local macOS publish and the `Release Windows` workflow
-run **at the same time**, each publisher's "find release for tag, create if
-missing" can pass before the other's create lands — GitHub happily hosts two
-published releases on the same tag, `releases/latest/download/...` resolves to
-only one of them, and the other platform's installer 404s. **Sequence the
-publishers**: push the tag (CI starts building Windows, which takes ~4 min of
-compile before it publishes), run the mac release, then check for duplicates:
-`gh api repos/<owner>/SmoothCut/releases --jq '.[] | {id, tag: .tag_name}'`. If
-two rows share the tag, re-upload the missing assets to the survivor (the id
-`gh release view` resolves to) and `gh api -X DELETE .../releases/<dup-id>` the
-other — deleting a release does not delete the tag. Either way, verify with
-`gh release view vX.Y.Z --json assets` before calling a release done.
+Recovery, if duplicates ever appear again: list them with
+`gh api repos/<owner>/SmoothCut/releases --jq '.[] | {id, tag: .tag_name}'`,
+re-upload the missing assets to the survivor (the id `gh release view` resolves to),
+and `gh api -X DELETE .../releases/<dup-id>` the rest — deleting a release does not
+delete the tag. Verify with `gh release view vX.Y.Z --json assets` before calling a
+release done.
 
 - [ ] Sign the app (macOS hard requirement — Squirrel.Mac refuses to install updates
       into an unsigned/invalidly-signed app; Windows strongly recommended for

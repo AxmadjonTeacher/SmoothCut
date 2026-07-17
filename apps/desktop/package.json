@@ -11,7 +11,7 @@
     "test": "vitest run --passWithNoTests",
     "icons": "node scripts/generate-icons.mjs",
     "package": "electron-vite build && electron-builder --config electron-builder.yml",
-    "release": "electron-vite build && electron-builder --config electron-builder.yml --publish always"
+    "release": "node scripts/ensure-release.mjs && electron-vite build && electron-builder --config electron-builder.yml --publish always"
   },
   "dependencies": {
     "@smoothcut/engine": "workspace:*",
