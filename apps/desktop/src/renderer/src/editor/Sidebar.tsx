@@ -8,7 +8,7 @@ import { GRADIENT_PRESETS } from '@smoothcut/engine';
 import type { SpringTuning } from '@smoothcut/engine';
 import { CANVAS_PRESETS } from '@smoothcut/shared';
 import type { CanvasPreset, ProjectFile, RecordingMeta, WebcamLayout } from '@smoothcut/shared';
-import { applyCommand, commitGesture, updateGesture } from './store';
+import { applyCommand, beginGesture, commitGesture, updateGesture } from './store';
 import { SliderRow, Segmented, ToggleRow } from './controls';
 import type { SliderPhase } from './controls';
 import { cssGradient } from './util';
@@ -45,13 +45,19 @@ function slide(recipe: (d: ProjectFile, v: number) => void) {
 
 function ColorInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const ref = useRef<HTMLInputElement | null>(null);
+  const inGesture = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     // Native 'change' fires when the picker closes — commit once there;
-    // 'input' events during the drag stay preview-only.
-    const onChange = (): void => onCommit(el.value);
+    // 'input' events during the drag stay preview-only. On macOS the color
+    // panel FLOATS and may never close, so the gesture can stay open
+    // indefinitely — beginGesture() on the next control protects it.
+    const onChange = (): void => {
+      inGesture.current = false;
+      onCommit(el.value);
+    };
     el.addEventListener('change', onChange);
     return () => el.removeEventListener('change', onChange);
   }, [onCommit]);
@@ -61,11 +67,15 @@ function ColorInput({ value, onCommit }: { value: string; onCommit: (v: string) 
       ref={ref}
       type="color"
       value={value}
-      onChange={(e) =>
+      onChange={(e) => {
+        if (!inGesture.current) {
+          inGesture.current = true;
+          beginGesture();
+        }
         updateGesture((d) => {
           d.style.background = { kind: 'solid', value: e.target.value, blur: d.style.background.blur };
-        })
-      }
+        });
+      }}
     />
   );
 }

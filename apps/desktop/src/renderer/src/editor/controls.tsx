@@ -7,6 +7,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
+import { beginGesture } from './store';
 
 export type SliderPhase = 'preview' | 'commit';
 
@@ -27,6 +28,9 @@ export function SliderRow({ label, min, max, step, value, display, onValue }: Sl
   const preview = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       const v = Number(e.target.value);
+      // First input of this drag: pin the gesture base to the CURRENT
+      // project, never a leftover from an earlier uncommitted gesture.
+      if (dragRef.current === null) beginGesture();
       dragRef.current = v;
       setDragValue(v);
       onValue(v, 'preview');

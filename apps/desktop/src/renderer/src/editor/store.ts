@@ -100,6 +100,12 @@ function afterProjectChange(project: ProjectFile): void {
 }
 
 export function applyCommand(recipe: CommandRecipe): void {
+  // A discrete command supersedes any in-flight or LEAKED gesture. Without
+  // this, a gesture whose commit never fired (macOS color panel left open —
+  // its 'change' only fires on close) keeps its stale base, and the next
+  // slider drag silently reverts every edit made since (e.g. picking a
+  // wallpaper, then Blur snapping the background to the pre-gesture gradient).
+  gestureBase = null;
   const base = editorStore.getState().project;
   if (!base) return;
   const [next, patches, inversePatches] = produceWithPatches(base, recipe);
@@ -114,6 +120,17 @@ export function applyCommand(recipe: CommandRecipe): void {
  * project as it was when the gesture began; `commitGesture` lands the final
  * recipe as a single undo entry. `cancelGesture` restores the base.
  */
+/**
+ * Marks the start of a drag gesture: the CURRENT project becomes the base all
+ * updateGesture previews (and the final commit) apply to. Call this on the
+ * first input of every drag so a previously leaked gesture can never donate
+ * its stale base.
+ */
+export function beginGesture(): void {
+  const { project } = editorStore.getState();
+  if (project) gestureBase = project;
+}
+
 export function updateGesture(recipe: CommandRecipe): void {
   const state = editorStore.getState();
   if (!state.project) return;
@@ -145,6 +162,7 @@ export function cancelGesture(): void {
 }
 
 export function undo(): void {
+  gestureBase = null;
   const entry = undoStack.pop();
   const { project } = editorStore.getState();
   if (!entry || !project) return;
@@ -160,6 +178,7 @@ export function undo(): void {
 }
 
 export function redo(): void {
+  gestureBase = null;
   const entry = redoStack.pop();
   const { project } = editorStore.getState();
   if (!entry || !project) return;

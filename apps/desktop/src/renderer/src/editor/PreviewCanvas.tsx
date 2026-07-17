@@ -9,7 +9,7 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import { SceneRenderer, fitScreenRect, fitWebcamRect, outputToSource } from '@smoothcut/engine';
 import type { CursorTrack, Ripple, ZoomTrack } from '@smoothcut/engine';
 import type { BundleUrls, ProjectFile, RecordingMeta } from '@smoothcut/shared';
-import { cancelGesture, commitGesture, editorStore, updateGesture, useEditor } from './store';
+import { beginGesture, cancelGesture, commitGesture, editorStore, updateGesture, useEditor } from './store';
 import { createCursorTextureManager } from './cursorTextures';
 import { clamp, resolveCanvasSize } from './util';
 import { WALLPAPER_URLS } from '../wallpapers';
@@ -317,6 +317,7 @@ export function PreviewCanvas({
         dx: clamp(cam.x + cam.width / 2 - p.x, -custom.width / 2, custom.width / 2),
         dy: clamp(cam.y + cam.height / 2 - p.y, -custom.height / 2, custom.height / 2),
       };
+      beginGesture();
       try {
         canvas.setPointerCapture(e.pointerId);
       } catch {
