@@ -46,6 +46,13 @@ process — the panel shows a **Relaunch SmoothCut** button when that's needed.
 Recordings live in `~/Movies/SmoothCut/<id>.smoothcut` (a directory bundle: raw
 `screen.mp4`, sidecar streams, `events.jsonl`, `project.json`).
 
+## Docs
+
+- [CLAUDE.md](CLAUDE.md) — agent guide: commands, invariants, gotchas, safety rules
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module map, clock domains, IPC, data formats
+- [docs/DEV-HARNESS.md](docs/DEV-HARNESS.md) — headless record/edit/export automation
+- `.claude/` — project skills (`verify`, `run`), the `e2e-verifier` agent, the `smoke` workflow, and a recordings-safety hook
+
 ## Development
 
 ```sh
