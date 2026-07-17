@@ -307,44 +307,6 @@ img {
   display: block;
 }
 
-.demo-placeholder {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  width: 100%;
-}
-
-.demo-play {
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
-  transition: transform 0.15s ease;
-}
-
-.demo-placeholder:hover .demo-play {
-  transform: scale(1.06);
-}
-
-.demo-placeholder-label {
-  font-size: 14px;
-  color: var(--text-dim);
-}
-
 /* --------------------------------------------------------------- section */
 
 .section {
