@@ -21,10 +21,12 @@ export function PermissionsGate({ status }: { status: PermissionsStatus }) {
   const next = missing[0];
   if (!next) return null;
 
-  const request = (kind: PermissionKind) => {
+  // macOS only shows its own consent dialog the FIRST time a permission is
+  // requested for a given app — once an entry exists (even switched off),
+  // requesting again is a silent no-op. Firing the request AND opening the
+  // right Settings pane every time means this button never dead-ends.
+  const grantAccess = (kind: PermissionKind) => {
     void window.smoothcut.invoke('permissions:request', kind);
-  };
-  const openSettings = (kind: PermissionKind) => {
     void window.smoothcut.invoke('permissions:openSettings', kind);
   };
 
@@ -42,11 +44,8 @@ export function PermissionsGate({ status }: { status: PermissionsStatus }) {
         </span>
       </div>
       <div className="pill-gate-actions">
-        <button type="button" className="primary mini" onClick={() => request(next.kind)}>
-          Grant
-        </button>
-        <button type="button" className="mini" onClick={() => openSettings(next.kind)}>
-          Open Settings
+        <button type="button" className="primary mini" onClick={() => grantAccess(next.kind)}>
+          Grant Access
         </button>
       </div>
     </div>
