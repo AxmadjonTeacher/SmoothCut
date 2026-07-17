@@ -12,6 +12,7 @@ import type { BundleUrls, ProjectFile, RecordingMeta } from '@smoothcut/shared';
 import { editorStore, useEditor } from './store';
 import { createCursorTextureManager } from './cursorTextures';
 import { clamp, resolveCanvasSize } from './util';
+import { WALLPAPER_URLS } from '../wallpapers';
 
 interface PreviewCanvasProps {
   project: ProjectFile;
@@ -149,6 +150,10 @@ export function PreviewCanvas({
           created.destroy();
           return;
         }
+        created.setWallpaperUrls(WALLPAPER_URLS);
+        // Async background bakes (wallpaper/image) land after applyProject
+        // returns; re-render even while paused so they show immediately.
+        created.onNeedsRender = invalidate;
         rendererRef.current = created;
         setRenderer(created);
         // Dev-harness introspection hook (no effect in production flows).
@@ -169,7 +174,7 @@ export function PreviewCanvas({
         }
       });
     };
-  }, [bootSize]);
+  }, [bootSize, invalidate]);
 
   useEffect(() => {
     if (!renderer || !cssSize) return;

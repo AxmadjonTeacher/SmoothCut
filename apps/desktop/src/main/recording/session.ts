@@ -25,6 +25,7 @@ import {
   createBubbleWindow,
   createCaptureWindow,
   createCountdownWindow,
+  createRecordingPillWindow,
 } from '../windows/factory.js';
 
 /** Structural recorder handle — MacRecorderHandle and WinRecorderHandle both match. */
@@ -40,6 +41,8 @@ const MIN_FREE_DISK_BYTES = 2 * 1024 ** 3;
 const CAPTURE_ACK_TIMEOUT_MS = 10_000;
 const BUBBLE_SIZE = 240;
 const BUBBLE_MARGIN = 24;
+/** Max wait for an overlay window to reach the screen before recording starts. */
+const OVERLAY_SHOW_TIMEOUT_MS = 3000;
 /** Dev harness only: record without the global input hook (no Accessibility needed). */
 const DEV_NO_INPUT = process.env.SMOOTHCUT_DEV_NO_INPUT === '1';
 
@@ -95,6 +98,43 @@ function expectedCaptureStreams(config: RecordingConfig): Set<CaptureStreamKind>
   return streams;
 }
 
+/**
+ * CGWindowID of one of our overlay windows, parsed out of Electron's media
+ * source id ('window:<CGWindowID>:<n>') — the id space ScreenCaptureKit's
+ * window-exclusion list expects.
+ */
+function cgWindowId(win: BrowserWindow | undefined): string | undefined {
+  if (!win || win.isDestroyed()) return undefined;
+  try {
+    const id = win.getMediaSourceId().split(':')[1];
+    return id !== undefined && Number(id) > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolves once `win` is showing (or after `timeoutMs`). The Swift recorder
+ * resolves excludeWindowIds against SCShareableContent with
+ * onScreenWindowsOnly=true, so an excluded overlay window MUST be on screen
+ * before the recorder process starts — a merely-created (hidden) window would
+ * silently not be excluded and end up in the capture.
+ */
+function whenWindowShown(win: BrowserWindow | undefined, timeoutMs: number): Promise<void> {
+  if (!win || win.isDestroyed() || win.isVisible()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      win.removeListener('show', onShow);
+      resolve();
+    }, timeoutMs);
+    const onShow = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    win.once('show', onShow);
+  });
+}
+
 /** One active recording at a time; owns the native recorder + input logger. */
 export class RecordingSession {
   private readonly deps: RecordingSessionDeps;
@@ -125,6 +165,7 @@ export class RecordingSession {
   private readonly captureSink = new CaptureSink();
   private captureWindow: BrowserWindow | undefined;
   private bubbleWindow: BrowserWindow | undefined;
+  private pillWindow: BrowserWindow | undefined;
   private countdownWindow: BrowserWindow | undefined;
   private captureExpected = new Set<CaptureStreamKind>();
   private captureWindowReady: Deferred | undefined;
@@ -256,10 +297,37 @@ export class RecordingSession {
       logger.start(!DEV_NO_INPUT);
       this.logger = logger;
 
+      // Overlay windows (webcam bubble + the floating stop pill) must be ON
+      // SCREEN before the recorder starts so ScreenCaptureKit can exclude
+      // them from display/area capture (see whenWindowShown). The pill shows
+      // fully transparent and is revealed once recording begins.
+      if (config.webcam) {
+        const b = geometry.display.bounds;
+        this.bubbleWindow = createBubbleWindow(config.webcam.deviceId, {
+          x: Math.round(b.x + BUBBLE_MARGIN),
+          y: Math.round(b.y + b.height - BUBBLE_SIZE - BUBBLE_MARGIN),
+        });
+      }
+      this.pillWindow = createRecordingPillWindow(geometry.display.bounds);
+      this.pillWindow.setOpacity(0);
+      this.pillWindow.showInactive();
+      await Promise.all([
+        whenWindowShown(this.bubbleWindow, OVERLAY_SHOW_TIMEOUT_MS),
+        whenWindowShown(this.pillWindow, OVERLAY_SHOW_TIMEOUT_MS),
+      ]);
+      if (this.cancelRequested) throw new Error('recording-cancelled');
+      const excludeWindowIds =
+        isDarwin && config.source.kind !== 'window'
+          ? [cgWindowId(this.bubbleWindow), cgWindowId(this.pillWindow)].filter(
+              (id): id is string => id !== undefined,
+            )
+          : [];
+
       const recorderOpts = {
         displayId: config.source.displayId,
         ...(config.source.kind === 'window' ? { windowId: config.source.windowId } : {}),
         ...(config.source.kind === 'area' ? { cropRectPx: config.source.rect } : {}),
+        ...(excludeWindowIds.length > 0 ? { excludeWindowIds } : {}),
         fps: config.fps,
         outputPath: join(bundleDir, REL.screen),
         cursorsDir: join(bundleDir, REL.cursorsDir),
@@ -305,20 +373,16 @@ export class RecordingSession {
         if (this.cancelRequested) throw new Error('recording-cancelled');
       }
 
-      if (config.webcam) {
-        const b = geometry.display.bounds;
-        this.bubbleWindow = createBubbleWindow(config.webcam.deviceId, {
-          x: Math.round(b.x + BUBBLE_MARGIN),
-          y: Math.round(b.y + b.height - BUBBLE_SIZE - BUBBLE_MARGIN),
-        });
-      }
-
       this.config = config;
       this.geometry = geometry;
       this.displays = sources.displays;
       this.startedAtMonotonic = nowMonotonicMs();
       this.closeCountdownWindow();
       this.startPowerBlocker();
+      if (this.pillWindow && !this.pillWindow.isDestroyed()) {
+        this.pillWindow.setOpacity(1);
+        this.pillWindow.showInactive();
+      }
       this.setState('recording');
       this.statusTimer = setInterval(() => this.pushStatus(), STATUS_PUSH_MS);
       this.diskTimer = setInterval(() => void this.checkDisk(), DISK_CHECK_MS);
@@ -405,6 +469,9 @@ export class RecordingSession {
       };
       await this.deps.store.writeMeta(projectId, meta);
       const project = createDefaultProject(`Recording ${this.createdAt.toLocaleString()}`, meta);
+      // The editor auto-generates click zooms on first open unless this run
+      // was recorded with auto-zoom off.
+      project.zoom.autoGenerate = config.autoZoom ?? true;
       await this.deps.store.save(projectId, project);
 
       this.setState('finalized');
@@ -467,14 +534,15 @@ export class RecordingSession {
     await this.captureSink.close();
   }
 
-  /** Destroys the capture/bubble/countdown windows and clears the capture waiters. */
+  /** Destroys the capture/bubble/pill/countdown windows and clears the capture waiters. */
   private closeCaptureWindows(): void {
     this.closeCountdownWindow();
-    for (const win of [this.captureWindow, this.bubbleWindow]) {
+    for (const win of [this.captureWindow, this.bubbleWindow, this.pillWindow]) {
       if (win && !win.isDestroyed()) win.destroy();
     }
     this.captureWindow = undefined;
     this.bubbleWindow = undefined;
+    this.pillWindow = undefined;
     this.captureExpected = new Set();
     this.captureWindowReady = undefined;
     this.captureStarted = undefined;

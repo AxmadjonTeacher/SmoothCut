@@ -1,8 +1,9 @@
 /**
  * Floating webcam bubble (?view=bubble&deviceId=...): a frameless,
- * always-on-top 240px circle showing the live camera while recording. It
- * opens its own getUserMedia stream (same deviceId as the capture window's
- * recorder) and is draggable via -webkit-app-region.
+ * always-on-top 240px squircle showing the live camera while recording —
+ * matching the editor's squircle webcam overlay. It opens its own
+ * getUserMedia stream (same deviceId as the capture window's recorder) and
+ * is draggable via -webkit-app-region.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -10,7 +11,7 @@ import type { CSSProperties } from 'react';
 const wrapStyle: CSSProperties = {
   width: '100vw',
   height: '100vh',
-  borderRadius: '50%',
+  borderRadius: '26%',
   overflow: 'hidden',
   background: '#101014',
   boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.18)',

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 import type { Rect } from '@smoothcut/shared';
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.mjs');
@@ -18,14 +18,48 @@ function loadRenderer(win: BrowserWindow, query: Query): void {
   }
 }
 
+/**
+ * The recorder toolbar window: a transparent canvas the renderer draws a
+ * compact floating pill into (top of the window), leaving room below for the
+ * expandable settings panel without ever resizing the window.
+ */
+const RECORDER_W = 760;
+const RECORDER_H = 560;
+
+/** Last user-chosen toolbar position, remembered across opens (per app run). */
+let recorderPos: { x: number; y: number } | undefined;
+
 export function createRecorderWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 420,
-    height: 700,
+    width: RECORDER_W,
+    height: RECORDER_H,
+    frame: false,
+    transparent: true,
     resizable: false,
+    fullscreenable: false,
+    maximizable: false,
+    minimizable: false,
+    hasShadow: false,
     show: false,
     webPreferences: { preload: PRELOAD, sandbox: false },
   });
+  win.setAlwaysOnTop(true, 'floating');
+  if (recorderPos) {
+    win.setPosition(recorderPos.x, recorderPos.y);
+  } else {
+    // First open: pill centered horizontally in the lower third of the
+    // primary display, clamped so the settings panel below it stays on screen.
+    const wa = screen.getPrimaryDisplay().workArea;
+    const x = Math.round(wa.x + (wa.width - RECORDER_W) / 2);
+    const y = Math.round(Math.min(wa.y + wa.height * 0.62, wa.y + wa.height - RECORDER_H));
+    win.setPosition(x, Math.max(wa.y, y));
+  }
+  const remember = (): void => {
+    const [x, y] = win.getPosition();
+    if (x !== undefined && y !== undefined) recorderPos = { x, y };
+  };
+  win.on('moved', remember);
+  win.on('close', remember);
   win.once('ready-to-show', () => win.show());
   loadRenderer(win, {});
   return win;
@@ -78,6 +112,39 @@ export function createBubbleWindow(deviceId: string, position?: { x: number; y: 
 }
 
 /**
+ * Small always-on-top control pill shown while recording (stop / elapsed /
+ * discard) at the top-center of the recorded display. Created HIDDEN before
+ * the screen recorder starts so its CGWindowID can be excluded from display
+ * capture; the session shows it once recording actually begins.
+ */
+const RECORDING_PILL_W = 220;
+const RECORDING_PILL_H = 48;
+const RECORDING_PILL_MARGIN = 12;
+
+export function createRecordingPillWindow(displayBounds: Rect): BrowserWindow {
+  const win = new BrowserWindow({
+    x: Math.round(displayBounds.x + (displayBounds.width - RECORDING_PILL_W) / 2),
+    y: Math.round(displayBounds.y + RECORDING_PILL_MARGIN),
+    width: RECORDING_PILL_W,
+    height: RECORDING_PILL_H,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    hasShadow: false,
+    skipTaskbar: true,
+    focusable: false,
+    acceptFirstMouse: true,
+    show: false,
+    webPreferences: { preload: PRELOAD, sandbox: false, backgroundThrottling: false },
+  });
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  loadRenderer(win, { view: 'recording-pill' });
+  return win;
+}
+
+/**
  * Full-screen click-through countdown overlay on the capture display.
  * Never takes focus (the app being recorded keeps it).
  */
@@ -108,13 +175,19 @@ export function createCountdownWindow(displayBounds: Rect): BrowserWindow {
 /**
  * Full-screen drag-select overlay for area capture. Focused so Esc/Enter work;
  * the renderer reports the result over the 'area:picked' invoke channel.
+ * roundedCorners/enableLargerThanScreen plus the post-show setBounds re-assert
+ * keep the overlay covering the WHOLE display (macOS otherwise constrains the
+ * frame around the menu bar, leaving an offset strip uncovered).
  */
 export function createAreaPickerWindow(displayId: string, displayBounds: Rect): BrowserWindow {
-  const win = new BrowserWindow({
+  const bounds = {
     x: Math.round(displayBounds.x),
     y: Math.round(displayBounds.y),
     width: Math.round(displayBounds.width),
     height: Math.round(displayBounds.height),
+  };
+  const win = new BrowserWindow({
+    ...bounds,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -123,13 +196,18 @@ export function createAreaPickerWindow(displayId: string, displayBounds: Rect): 
     hasShadow: false,
     skipTaskbar: true,
     fullscreenable: false,
+    roundedCorners: false,
+    enableLargerThanScreen: true,
     show: false,
     webPreferences: { preload: PRELOAD, sandbox: false },
   });
   win.setAlwaysOnTop(true, 'screen-saver');
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.once('ready-to-show', () => {
     win.show();
     win.focus();
+    // macOS may have constrained the initial frame — re-assert after show.
+    win.setBounds(bounds);
   });
   loadRenderer(win, { view: 'area-picker', displayId });
   return win;

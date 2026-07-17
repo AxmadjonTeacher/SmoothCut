@@ -48,6 +48,8 @@ export interface RecordingConfig {
   mic?: { deviceId: string; noiseSuppression: boolean };
   systemAudio: boolean;
   countdownSec: 0 | 3 | 5 | 10;
+  /** Editor auto-generates zoom segments from clicks (default true). */
+  autoZoom?: boolean;
 }
 
 /**

@@ -20,11 +20,29 @@ export class BackgroundNode extends Container {
   private canvasH = 1;
   /** Guards against a stale async image bake landing after a newer apply(). */
   private generation = 0;
+  /** Bundled wallpaper id → asset URL, registered by the host. */
+  private wallpaperUrls: Record<string, string> = {};
+  /** In-flight async bake (image/wallpaper); null when the bake was sync. */
+  private pending: Promise<void> | null = null;
+  /** Fired when an async bake lands, so paused hosts can re-render. */
+  onAsyncBake: (() => void) | null = null;
 
   constructor() {
     super();
     this.sprite = new Sprite();
     this.addChild(this.sprite);
+  }
+
+  setWallpaperUrls(urls: Record<string, string>): void {
+    this.wallpaperUrls = urls;
+  }
+
+  /**
+   * Resolves once the current background is fully baked (immediately for
+   * solid/gradient). Never rejects — load failures fall back gracefully.
+   */
+  waitForLoad(): Promise<void> {
+    return this.pending ?? Promise.resolve();
   }
 
   apply(style: BackgroundStyle, canvasW: number, canvasH: number): void {
@@ -33,17 +51,26 @@ export class BackgroundNode extends Container {
     const gen = ++this.generation;
 
     if (style.kind === 'image') {
-      void this.bakeImage(style, gen);
+      this.pending = this.bakeImage(style.value, style.blur, gen, false);
       return;
     }
+    if (style.kind === 'wallpaper') {
+      const url = this.wallpaperUrls[style.value];
+      if (url !== undefined) {
+        this.pending = this.bakeImage(url, style.blur, gen, true);
+        return;
+      }
+      // Unknown wallpaper id → graphite gradient fallback below.
+    }
 
+    this.pending = null;
     const baked = this.createBakeCanvas();
     if (style.kind === 'solid') {
       baked.ctx.fillStyle = style.value;
       baked.ctx.fillRect(0, 0, baked.width, baked.height);
     } else {
-      // 'gradient' and 'wallpaper' share the id → preset mechanism.
-      const spec = parseGradient(style.value) ?? FALLBACK_GRADIENT;
+      const spec =
+        style.kind === 'gradient' ? (parseGradient(style.value) ?? FALLBACK_GRADIENT) : FALLBACK_GRADIENT;
       drawLinearGradient(baked.ctx, baked.width, baked.height, spec);
     }
     this.setBaked(this.blurred(baked.canvas, this.toBakePx(style.blur, baked.width)), gen);
@@ -69,9 +96,14 @@ export class BackgroundNode extends Container {
     return out;
   }
 
-  private async bakeImage(style: BackgroundStyle, gen: number): Promise<void> {
+  private async bakeImage(
+    url: string,
+    blur: number,
+    gen: number,
+    fallbackOnError: boolean,
+  ): Promise<void> {
     try {
-      const loaded = await Assets.load<Texture>(style.value);
+      const loaded = await Assets.load<Texture>(url);
       if (gen !== this.generation) return;
       const baked = this.createBakeCanvas();
       const { ctx, width, height } = baked;
@@ -79,7 +111,7 @@ export class BackgroundNode extends Container {
       const srcW = Math.max(1, loaded.source.pixelWidth);
       const srcH = Math.max(1, loaded.source.pixelHeight);
       const cover = Math.max(width / srcW, height / srcH);
-      const blurPx = this.toBakePx(style.blur, width);
+      const blurPx = this.toBakePx(blur, width);
       if (blurPx > 0) ctx.filter = `blur(${blurPx}px)`;
       const o = blurPx > 0 ? Math.ceil(blurPx * 2) : 0;
       const dw = srcW * cover + o * 2;
@@ -87,8 +119,18 @@ export class BackgroundNode extends Container {
       ctx.drawImage(src, (width - dw) / 2, (height - dh) / 2, dw, dh);
       ctx.filter = 'none';
       this.setBaked(baked.canvas, gen);
+      this.onAsyncBake?.();
     } catch {
-      // Missing/unreadable file: keep whatever background is currently shown.
+      if (gen !== this.generation) return;
+      if (fallbackOnError) {
+        // Unloadable wallpaper asset: bake the graphite fallback so exports
+        // never compose over an unstyled clear color.
+        const baked = this.createBakeCanvas();
+        drawLinearGradient(baked.ctx, baked.width, baked.height, FALLBACK_GRADIENT);
+        this.setBaked(baked.canvas, gen);
+        this.onAsyncBake?.();
+      }
+      // Missing/unreadable user image: keep whatever background is shown.
     }
   }
 

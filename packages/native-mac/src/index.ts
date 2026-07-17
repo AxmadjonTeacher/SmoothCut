@@ -78,6 +78,8 @@ export interface MacRecorderOptions {
   fps: 30 | 60;
   outputPath: string;
   cursorsDir: string;
+  /** CGWindowIDs of app overlay windows to exclude from display capture. */
+  excludeWindowIds?: string[];
 }
 
 export interface MacRecorderCallbacks {
@@ -107,6 +109,9 @@ export async function startMacRecorder(
     displayId: Number(opts.displayId),
     ...(opts.windowId !== undefined ? { windowId: Number(opts.windowId) } : {}),
     ...(opts.cropRectPx !== undefined ? { cropRect: opts.cropRectPx } : {}),
+    ...(opts.excludeWindowIds !== undefined && opts.excludeWindowIds.length > 0
+      ? { excludeWindowIds: opts.excludeWindowIds.map(Number).filter((n) => Number.isFinite(n)) }
+      : {}),
     fps: opts.fps,
     outputPath: opts.outputPath,
     cursorsDir: opts.cursorsDir,

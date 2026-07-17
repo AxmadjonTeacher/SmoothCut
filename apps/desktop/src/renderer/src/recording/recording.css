@@ -1,0 +1,96 @@
+/* Floating in-recording pill — 220x48 transparent window. */
+
+.rp-pill {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 24px;
+  background: rgba(18, 18, 22, 0.86);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  /* The clock area doubles as the drag handle. */
+  -webkit-app-region: drag;
+}
+
+.rp-pill button {
+  -webkit-app-region: no-drag;
+}
+
+.rp-stop {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--danger);
+  box-shadow: 0 2px 10px rgba(229, 72, 77, 0.45);
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.rp-stop:hover:not(:disabled) {
+  background: #ef5b60;
+  transform: scale(1.06);
+}
+
+.rp-stop:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.rp-stop:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rp-stop-square {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.rp-time {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  color: #f2f2f6;
+  cursor: default;
+}
+
+.rp-discard {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.45);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.rp-discard:hover:not(:disabled) {
+  background: rgba(229, 72, 77, 0.16);
+  color: var(--danger);
+}
+
+.rp-discard:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

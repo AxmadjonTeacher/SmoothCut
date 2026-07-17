@@ -6,7 +6,8 @@ export type { CursorNodeUpdate } from './CursorNode.js';
 export { RippleLayer, RIPPLE_DURATION_SEC } from './RippleLayer.js';
 export { FrameTexture } from './frameTexture.js';
 export { fitScreenRect, fitWebcamRect } from './layout.js';
-export type { RectPx } from './layout.js';
+export type { RectPx, WebcamShape } from './layout.js';
+export { BakedTexture } from './bakedTexture.js';
 export {
   GRADIENT_PRESETS,
   parseGradient,

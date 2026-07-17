@@ -6,6 +6,7 @@ const CaptureRoot = lazy(() => import('./capture/CaptureRoot'));
 const BubbleRoot = lazy(() => import('./capture/BubbleRoot'));
 const AreaPickerRoot = lazy(() => import('./area/AreaPickerRoot'));
 const CountdownRoot = lazy(() => import('./countdown/CountdownRoot'));
+const RecordingPillRoot = lazy(() => import('./recording/RecordingPillRoot'));
 
 export function App() {
   const params = new URLSearchParams(window.location.search);
@@ -24,6 +25,8 @@ export function App() {
         <AreaPickerRoot />
       ) : view === 'countdown' ? (
         <CountdownRoot />
+      ) : view === 'recording-pill' ? (
+        <RecordingPillRoot />
       ) : (
         <RecorderRoot />
       )}

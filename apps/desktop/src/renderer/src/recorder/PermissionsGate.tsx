@@ -1,45 +1,25 @@
-/** macOS permissions checklist shown instead of the recorder until granted. */
+/**
+ * Compact macOS permissions gate rendered INSIDE the recorder pill until
+ * Screen Recording + Accessibility are granted (the pill polls and swaps to
+ * the toolbar automatically).
+ */
 import type { PermissionKind, PermissionsStatus } from '@smoothcut/shared';
+import { WarnIcon } from './icons';
 
 interface GateItem {
   kind: PermissionKind;
   title: string;
-  description: string;
   granted: boolean;
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-      <path
-        d="M3 7.5 6 10.5 11 4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export function PermissionsGate({ status }: { status: PermissionsStatus }) {
   const items: GateItem[] = [
-    {
-      kind: 'screen',
-      title: 'Screen Recording',
-      description:
-        'Lets SmoothCut capture your display. macOS only applies this permission after the app is relaunched.',
-      granted: status.screen === 'granted',
-    },
-    {
-      kind: 'accessibility',
-      title: 'Accessibility',
-      description:
-        'Lets SmoothCut see mouse movement and clicks while recording — that data drives auto-zoom and the smooth cursor.',
-      granted: status.accessibility,
-    },
+    { kind: 'screen', title: 'Screen Recording', granted: status.screen === 'granted' },
+    { kind: 'accessibility', title: 'Accessibility', granted: status.accessibility },
   ];
+  const missing = items.filter((i) => !i.granted);
+  const next = missing[0];
+  if (!next) return null;
 
   const request = (kind: PermissionKind) => {
     void window.smoothcut.invoke('permissions:request', kind);
@@ -49,45 +29,25 @@ export function PermissionsGate({ status }: { status: PermissionsStatus }) {
   };
 
   return (
-    <div className="recorder gate">
-      <header className="rec-header">
-        <span className="logo-dot" />
-        <span className="app-name">SmoothCut</span>
-      </header>
-      <div className="gate-body">
-        <div>
-          <h1 className="gate-title">One-time setup</h1>
-          <p className="gate-sub">
-            SmoothCut needs two macOS permissions before it can record. This list updates
-            automatically as you grant them.
-          </p>
-        </div>
-        {items.map((item) => (
-          <div key={item.kind} className={item.granted ? 'gate-row granted' : 'gate-row'}>
-            <div className="gate-row-head">
-              <span className={item.granted ? 'gate-check ok' : 'gate-check'}>
-                {item.granted ? <CheckIcon /> : null}
-              </span>
-              <span>{item.title}</span>
-              {item.granted ? <span className="gate-tag">Granted</span> : null}
-            </div>
-            <p className="gate-desc">{item.description}</p>
-            {!item.granted ? (
-              <div className="gate-actions">
-                <button type="button" className="primary" onClick={() => request(item.kind)}>
-                  Request
-                </button>
-                <button type="button" onClick={() => openSettings(item.kind)}>
-                  Open Settings
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ))}
-        <p className="gate-note">
-          Tip: after granting Screen Recording, quit and reopen SmoothCut — macOS applies that
-          grant on the next launch.
-        </p>
+    <div className="pill-gate">
+      <span className="pill-gate-icon">
+        <WarnIcon />
+      </span>
+      <div className="pill-gate-text">
+        <strong>{missing.map((m) => m.title).join(' + ')} needed</strong>
+        <span>
+          {next.kind === 'screen'
+            ? 'Grant Screen Recording, then relaunch SmoothCut (macOS applies it on the next launch).'
+            : 'Accessibility lets SmoothCut track clicks for auto-zoom and the smooth cursor.'}
+        </span>
+      </div>
+      <div className="pill-gate-actions">
+        <button type="button" className="primary mini" onClick={() => request(next.kind)}>
+          Grant
+        </button>
+        <button type="button" className="mini" onClick={() => openSettings(next.kind)}>
+          Open Settings
+        </button>
       </div>
     </div>
   );

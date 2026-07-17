@@ -21,17 +21,34 @@ interface ExportJob {
 export class ExportFileSink {
   private readonly jobs = new Map<string, ExportJob>();
 
-  async pickDestination(defaultName: string): Promise<string | null> {
+  async pickDestination(defaultName: string, defaultDirectory?: string): Promise<string | null> {
     const win = BrowserWindow.getFocusedWindow() ?? undefined;
     const options = {
       title: 'Export video',
-      defaultPath: join(app.getPath('downloads'), basename(defaultName)),
+      defaultPath: join(defaultDirectory ?? app.getPath('downloads'), basename(defaultName)),
       filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
     };
     const result = win
       ? await dialog.showSaveDialog(win, options)
       : await dialog.showSaveDialog(options);
     return result.canceled || !result.filePath ? null : result.filePath;
+  }
+
+  /** Folder picker for the default export directory; null when cancelled. */
+  async pickDirectory(currentDirectory?: string): Promise<string | null> {
+    // Dev harness: dialogs can't be driven headlessly — return the fake pick.
+    const devFake = process.env.SMOOTHCUT_DEV_FAKE_PICK_DIR;
+    if (devFake) return devFake;
+    const win = BrowserWindow.getFocusedWindow() ?? undefined;
+    const options: Electron.OpenDialogOptions = {
+      title: 'Choose export folder',
+      ...(currentDirectory !== undefined ? { defaultPath: currentDirectory } : {}),
+      properties: ['openDirectory', 'createDirectory'],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
   }
 
   async begin(_projectId: string, settings: ExportSettings): Promise<{ exportId: string }> {

@@ -106,7 +106,7 @@ export const projectStyleSchema = z.object({
     layout: webcamLayoutSchema,
     /** Diameter/height as a fraction of canvas height. */
     sizePct: z.number().min(0.1).max(0.5),
-    cornerStyle: z.enum(['squircle', 'circle']),
+    cornerStyle: z.enum(['squircle', 'circle', 'rect']),
     shadow: shadowStyleSchema,
     hidden: z.boolean(),
   }),
@@ -138,6 +138,8 @@ export const projectFileSchema = z.object({
   zoom: z.object({
     config: zoomConfigSchema,
     segments: z.array(zoomSegmentSchema),
+    /** When false, the editor never auto-generates zoom segments on first open. */
+    autoGenerate: z.boolean().optional(),
   }),
   cursor: cursorStyleSchema,
   style: projectStyleSchema,

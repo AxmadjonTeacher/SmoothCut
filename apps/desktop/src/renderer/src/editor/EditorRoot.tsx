@@ -34,6 +34,7 @@ import { Timeline } from './Timeline';
 import { Sidebar } from './Sidebar';
 import { DevAutoExport, parseDevExportSize } from './DevAutoExport';
 import { ExportDialog } from './ExportDialog';
+import { FolderIcon } from '../recorder/icons';
 import './editor.css';
 
 interface LoadedBundle {
@@ -55,8 +56,10 @@ export default function EditorRoot({ projectId }: { projectId: string }) {
         if (cancelled) return;
         const events = prepareEvents(parseEventsJsonl(eventsText), bundle.meta);
         initEditor(projectId, bundle.project);
-        // First open: seed auto zooms from click clusters.
+        // First open: seed auto zooms from click clusters (unless the
+        // recording was made with auto-zoom off).
         if (
+          bundle.project.zoom.autoGenerate !== false &&
           bundle.project.zoom.segments.length === 0 &&
           events.some((e) => e.type === 'down')
         ) {
@@ -128,6 +131,50 @@ function deleteSelection(): void {
 function streamOffsetSec(clocks: StreamClocks, startMs: number | undefined): number {
   if (startMs === undefined) return 0;
   return Math.max(0, (startMs - clocks.screenFirstFrame) / 1000);
+}
+
+/** "/Users/me/Movies" → "~/Movies" for tooltips. */
+function abbreviateHome(path: string): string {
+  return path.replace(/^\/Users\/[^/]+/, '~');
+}
+
+/** Header button: pick the default export folder (persisted in settings). */
+function ExportFolderButton() {
+  const [dir, setDir] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.smoothcut
+      .invoke('settings:get')
+      .then((s) => {
+        if (!cancelled) setDir(s.exportDefaults.directory ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pick = useCallback(async () => {
+    try {
+      const picked = await window.smoothcut.invoke('export:pickDirectory');
+      if (picked !== null) setDir(picked);
+    } catch {
+      // dialog failed — keep the current folder
+    }
+  }, []);
+
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      aria-label="Choose export folder"
+      title={`Save exports to: ${dir !== null ? abbreviateHome(dir) : 'Downloads'}`}
+      onClick={() => void pick()}
+    >
+      <FolderIcon />
+    </button>
+  );
 }
 
 function EditorShell({ projectId, bundle }: { projectId: string; bundle: LoadedBundle }) {
@@ -267,6 +314,7 @@ function EditorShell({ projectId, bundle }: { projectId: string; bundle: LoadedB
           }}
           spellCheck={false}
         />
+        <ExportFolderButton />
         {dirty ? <span className="editor-dirty" title="Unsaved changes">●</span> : null}
         <div className="editor-header-spacer" />
         <button type="button" className="primary" onClick={() => setExportOpen(true)}>

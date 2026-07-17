@@ -12,6 +12,7 @@ import { applyCommand, commitGesture, updateGesture } from './store';
 import { SliderRow, Segmented, ToggleRow } from './controls';
 import type { SliderPhase } from './controls';
 import { cssGradient } from './util';
+import { WALLPAPERS } from '../wallpapers';
 
 type Tab = 'style' | 'cursor' | 'audio' | 'webcam';
 
@@ -146,20 +147,20 @@ export function Sidebar({ project, meta, hasCamera, tuning, onTuning }: SidebarP
                   );
                 })}
               </div>
-              <div className="swatch-grid">
-                {BACKGROUND_IDS.map((id) => {
-                  const spec = GRADIENT_PRESETS[id];
-                  if (!spec) return null;
-                  const active = bg.kind === 'wallpaper' && bg.value === id;
+              <div className="sb-mini-label">Wallpapers</div>
+              <div className="wallpaper-grid">
+                {WALLPAPERS.map((w) => {
+                  const active = bg.kind === 'wallpaper' && bg.value === w.id;
                   return (
                     <button
-                      key={id}
+                      key={w.id}
                       type="button"
-                      title={`Wallpaper · ${id}`}
-                      className={active ? 'swatch swatch-wallpaper active' : 'swatch swatch-wallpaper'}
-                      style={{ background: cssGradient(spec) }}
-                      onClick={() => setBackground('wallpaper', id)}
-                    />
+                      title={w.label}
+                      className={active ? 'wallpaper-thumb active' : 'wallpaper-thumb'}
+                      onClick={() => setBackground('wallpaper', w.id)}
+                    >
+                      <img src={w.url} alt={w.label} draggable={false} />
+                    </button>
                   );
                 })}
               </div>
@@ -430,6 +431,7 @@ export function Sidebar({ project, meta, hasCamera, tuning, onTuning }: SidebarP
                 options={[
                   { value: 'squircle', label: 'Squircle' },
                   { value: 'circle', label: 'Circle' },
+                  { value: 'rect', label: 'Rectangle' },
                 ]}
                 value={style.webcam.cornerStyle}
                 onChange={(cornerStyle) =>

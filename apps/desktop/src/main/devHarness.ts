@@ -26,9 +26,20 @@
  *                                  (if set), waits SMOOTHCUT_DEV_SETTLE_MS
  *                                  (default 500), and also shoots any other
  *                                  open window to <png base>-w<n>.png.
+ *   SMOOTHCUT_DEV_WIN_INFO=1       with PANEL_SHOT: log each extra window's
+ *                                  bounds + renderer inner size/dpr, plus the
+ *                                  system display list (overlay coverage
+ *                                  assertions).
+ *   SMOOTHCUT_DEV_AUTOZOOM=0|1     with RECORD_SEC: set RecordingConfig.autoZoom.
+ *   SMOOTHCUT_DEV_FAKE_PICK_DIR=<dir>
+ *                                  'export:pickDirectory' returns <dir> without
+ *                                  opening a dialog (headless round-trips).
+ *
+ *   RECORD_SEC + SMOOTHCUT_DEV_SHOT without a countdown screenshots every open
+ *   window mid-recording (<png>, then <png base>-w<n>.png) — bubble/pill checks.
  */
 import { writeFile } from 'node:fs/promises';
-import { app, BrowserWindow } from 'electron';
+import { app, screen, BrowserWindow } from 'electron';
 import type { Rect } from '@smoothcut/shared';
 import type { RecordingSession } from './recording/session.js';
 import { listSources } from './sources.js';
@@ -107,10 +118,22 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
         }
         await new Promise((r) => setTimeout(r, settleMs));
         await screenshot(win, PANEL_SHOT_PATH).catch((e: unknown) => log(`shot-error ${String(e)}`));
+        const winInfo = process.env.SMOOTHCUT_DEV_WIN_INFO === '1';
+        if (winInfo) {
+          log(`displays ${JSON.stringify(screen.getAllDisplays().map((d) => d.bounds))}`);
+        }
         let n = 0;
         for (const other of BrowserWindow.getAllWindows()) {
           if (other === win || other.isDestroyed()) continue;
           n += 1;
+          if (winInfo) {
+            const inner: unknown = await other.webContents
+              .executeJavaScript(
+                '({w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio})',
+              )
+              .catch(() => null);
+            log(`win-info w${n} bounds=${JSON.stringify(other.getBounds())} inner=${JSON.stringify(inner)}`);
+          }
           const path = PANEL_SHOT_PATH.replace(/\.png$/, `-w${n}.png`);
           await screenshot(other, path).catch((e: unknown) => log(`shot-error ${String(e)}`));
         }
@@ -140,6 +163,7 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
         }
         // Empty deviceId = "any device" (the capture window drops the
         // deviceId constraint) — main cannot enumerate media devices.
+        const autoZoomRaw = process.env.SMOOTHCUT_DEV_AUTOZOOM;
         const { projectId } = await session.start({
           source: areaRect
             ? { kind: 'area', displayId: primary.id, rect: areaRect }
@@ -149,7 +173,22 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
           ...(DEV_MIC ? { mic: { deviceId: '', noiseSuppression: false } } : {}),
           ...(DEV_WEBCAM ? { webcam: { deviceId: '' } } : {}),
           countdownSec,
+          ...(autoZoomRaw !== undefined ? { autoZoom: autoZoomRaw === '1' } : {}),
         });
+        if (SHOT_PATH && countdownSec === 0) {
+          // Mid-recording: shoot every open window (bubble, recording pill, …).
+          setTimeout(() => {
+            void (async () => {
+              let n = 0;
+              for (const w of BrowserWindow.getAllWindows()) {
+                if (w.isDestroyed()) continue;
+                const path = n === 0 ? SHOT_PATH : SHOT_PATH.replace(/\.png$/, `-w${n}.png`);
+                n += 1;
+                await screenshot(w, path).catch((e: unknown) => log(`shot-error ${String(e)}`));
+              }
+            })();
+          }, Math.max(500, (seconds * 1000) / 2));
+        }
         await new Promise((r) => setTimeout(r, seconds * 1000));
         await session.stop();
         log(`finalized ${projectId} ${bundleDirOf(projectId)}`);
@@ -197,6 +236,8 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
               } catch (e) {
                 log(`eval-error ${String(e)}`);
               }
+              // Let the UI repaint whatever the eval changed before shooting.
+              await new Promise((r) => setTimeout(r, Number(process.env.SMOOTHCUT_DEV_SETTLE_MS ?? 500)));
             }
             await screenshot(win, SHOT_PATH).catch((e: unknown) => log(`shot-error ${String(e)}`));
             setTimeout(() => app.quit(), 500);

@@ -88,7 +88,15 @@ export function registerIpc(deps: IpcDeps): void {
     deps.openEditor(id);
   });
 
-  handle('export:pickDestination', (defaultName) => deps.exports.pickDestination(defaultName));
+  handle('export:pickDestination', (defaultName) =>
+    deps.exports.pickDestination(defaultName, deps.settings.get().exportDefaults.directory),
+  );
+  handle('export:pickDirectory', async () => {
+    const current = deps.settings.get().exportDefaults;
+    const dir = await deps.exports.pickDirectory(current.directory);
+    if (dir !== null) deps.settings.set({ exportDefaults: { ...current, directory: dir } });
+    return dir;
+  });
   handle('export:begin', (projectId, settings) => deps.exports.begin(projectId, settings));
   handle('export:writeChunk', (exportId, chunk, position) =>
     deps.exports.writeChunk(exportId, chunk, position),

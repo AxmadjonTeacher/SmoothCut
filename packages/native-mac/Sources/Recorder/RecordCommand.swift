@@ -19,6 +19,9 @@ struct RecordConfig: Decodable {
   let fps: Int
   let outputPath: String
   let cursorsDir: String
+  /// App overlay windows (webcam bubble, recording controls) to keep out of
+  /// the capture — display capture only.
+  let excludeWindowIds: [UInt32]?
 }
 
 final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -211,7 +214,9 @@ func runRecord(configJSON: String) -> Never {
     widthPx = Int((Double(window.frame.width) * scale).rounded())
     heightPx = Int((Double(window.frame.height) * scale).rounded())
   } else {
-    filter = SCContentFilter(display: display, excludingWindows: [])
+    let excludeIds = Set(config.excludeWindowIds ?? [])
+    let excluded = content.windows.filter { excludeIds.contains($0.windowID) }
+    filter = SCContentFilter(display: display, excludingWindows: excluded)
     widthPx = Int((Double(display.width) * scale).rounded())
     heightPx = Int((Double(display.height) * scale).rounded())
   }

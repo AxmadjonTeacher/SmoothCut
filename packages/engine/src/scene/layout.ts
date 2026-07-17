@@ -28,31 +28,38 @@ export function fitScreenRect(
   return { x: (canvasW - width) / 2, y: (canvasH - height) / 2, width, height };
 }
 
+export type WebcamShape = 'squircle' | 'circle' | 'rect';
+
+/** Portrait rounded-rect webcam: width as a fraction of its height. */
+const WEBCAM_RECT_ASPECT = 0.72;
+
 /**
  * Webcam placement: bubbles sit in a corner with a margin; pinned layouts hug
- * the left/right edge at vertical center. The webcam is square, sized as
- * sizePct of the canvas height.
+ * the left/right edge at vertical center. Height is sizePct of the canvas
+ * height; squircle/circle are square, 'rect' is a portrait rounded rect.
  */
 export function fitWebcamRect(
   canvasW: number,
   canvasH: number,
   layout: WebcamLayout,
   sizePct: number,
+  shape: WebcamShape = 'squircle',
 ): RectPx {
-  const size = sizePct * canvasH;
+  const height = sizePct * canvasH;
+  const width = shape === 'rect' ? height * WEBCAM_RECT_ASPECT : height;
   const margin = 0.035 * Math.min(canvasW, canvasH);
   switch (layout) {
     case 'bubble-bl':
-      return { x: margin, y: canvasH - margin - size, width: size, height: size };
+      return { x: margin, y: canvasH - margin - height, width, height };
     case 'bubble-br':
-      return { x: canvasW - margin - size, y: canvasH - margin - size, width: size, height: size };
+      return { x: canvasW - margin - width, y: canvasH - margin - height, width, height };
     case 'bubble-tl':
-      return { x: margin, y: margin, width: size, height: size };
+      return { x: margin, y: margin, width, height };
     case 'bubble-tr':
-      return { x: canvasW - margin - size, y: margin, width: size, height: size };
+      return { x: canvasW - margin - width, y: margin, width, height };
     case 'pinned-left':
-      return { x: margin, y: (canvasH - size) / 2, width: size, height: size };
+      return { x: margin, y: (canvasH - height) / 2, width, height };
     case 'pinned-right':
-      return { x: canvasW - margin - size, y: (canvasH - size) / 2, width: size, height: size };
+      return { x: canvasW - margin - width, y: (canvasH - height) / 2, width, height };
   }
 }

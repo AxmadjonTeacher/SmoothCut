@@ -82,6 +82,8 @@ export interface IpcInvokeMap {
   'project:eventsText': (id: string) => string;
   'project:openEditor': (id: string) => void;
   'export:pickDestination': (defaultName: string) => string | null;
+  /** Directory picker for the default export folder (persisted in settings). */
+  'export:pickDirectory': () => string | null;
   'export:begin': (projectId: string, settings: ExportSettings) => { exportId: string };
   /** `position` is a byte offset (MP4 finalization rewrites the header); null = append. */
   'export:writeChunk': (exportId: string, chunk: ArrayBuffer, position: number | null) => void;
@@ -127,13 +129,18 @@ export interface AppSettings {
   /** Remembered area per display id. */
   rememberedAreas: Record<string, { x: number; y: number; width: number; height: number }>;
   hotkeyToggleRecording: string;
-  exportDefaults: { fps: 30 | 60; bitrateMbps: number };
+  exportDefaults: { fps: 30 | 60; bitrateMbps: number; directory?: string };
+  /** Device the camera/mic toolbar toggles use when switched on. */
+  cameraDeviceId?: string;
+  micDeviceId?: string;
+  autoZoomEnabled: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   rememberedAreas: {},
   hotkeyToggleRecording: 'CommandOrControl+Shift+2',
   exportDefaults: { fps: 60, bitrateMbps: 12 },
+  autoZoomEnabled: true,
 };
 
 export type IpcInvokeChannel = keyof IpcInvokeMap;

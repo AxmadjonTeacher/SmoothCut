@@ -6,13 +6,13 @@ import type { CursorTrack } from '../cursor/cursorTrack.js';
 import type { ZoomTrack } from '../zoom/zoomTrack.js';
 import type { Ripple } from '../cursor/ripples.js';
 import { BackgroundNode } from './BackgroundNode.js';
+import { BakedTexture } from './bakedTexture.js';
 import { CursorNode } from './CursorNode.js';
 import { RippleLayer } from './RippleLayer.js';
 import { FrameTexture } from './frameTexture.js';
 import { fitScreenRect, fitWebcamRect } from './layout.js';
 import type { RectPx } from './layout.js';
 import { bakeMask, bakeShadow, circlePath, roundedRectPath, squirclePath } from './canvas2d.js';
-import type { BakeCanvas } from './canvas2d.js';
 import {
   DEFAULT_CURSOR_DATA_URI,
   DEFAULT_CURSOR_HOTSPOT,
@@ -61,7 +61,16 @@ export class SceneRenderer {
   private readonly screenFrame = new FrameTexture();
   private readonly webcamFrame = new FrameTexture();
   private readonly defaultCursorTexture: Texture;
-  private bakedTextures: Texture[] = [];
+  // Baked masks/shadows live in persistent, update-in-place slots — see
+  // BakedTexture for why destroy-and-recreate breaks the next masked render.
+  private readonly screenMaskBake = new BakedTexture();
+  private readonly screenShadowBake = new BakedTexture();
+  private readonly webcamMaskBake = new BakedTexture();
+  private readonly webcamShadowBake = new BakedTexture();
+
+  /** Fired when an async bake (wallpaper/image background) lands after
+   * apply; hosts that render on demand should re-render. */
+  onNeedsRender: (() => void) | null = null;
 
   private cursorProvider: CursorTextureProvider | null = null;
   private cursorTrack: CursorTrack | null = null;
@@ -102,6 +111,7 @@ export class SceneRenderer {
 
     this.stage = new Container();
     this.background = new BackgroundNode();
+    this.background.onAsyncBake = () => this.onNeedsRender?.();
     this.stage.addChild(this.background);
 
     this.zoomGroup = new Container();
@@ -142,6 +152,24 @@ export class SceneRenderer {
     this.meta = meta;
     this.rippleLayer.setEnabled(project.cursor.clickRipples);
     this.relayout();
+  }
+
+  /** Registers bundled wallpaper id → URL mappings (host asset registry). */
+  setWallpaperUrls(urls: Record<string, string>): void {
+    this.background.setWallpaperUrls(urls);
+    // Re-resolve if a wallpaper background was applied before registration.
+    if (this.project?.style.background.kind === 'wallpaper') {
+      this.background.apply(this.project.style.background, this.viewW, this.viewH);
+    }
+  }
+
+  /**
+   * Resolves once the current background finished loading (immediately for
+   * solid/gradient). Frame-exact hosts (export) await this before composing
+   * frame 0 so a wallpaper never flashes in late.
+   */
+  waitForBackground(): Promise<void> {
+    return this.background.waitForLoad();
   }
 
   setTracks(cursor: CursorTrack, zoom: ZoomTrack, ripples: Ripple[]): void {
@@ -206,7 +234,10 @@ export class SceneRenderer {
   destroy(): void {
     this.screenFrame.destroy();
     this.webcamFrame.destroy();
-    this.destroyBaked();
+    this.screenMaskBake.destroy();
+    this.screenShadowBake.destroy();
+    this.webcamMaskBake.destroy();
+    this.webcamShadowBake.destroy();
     this.defaultCursorTexture.destroy(true);
     this.stage.destroy({ children: true });
     this.renderer.destroy();
@@ -230,7 +261,6 @@ export class SceneRenderer {
         : { width: style.canvas.width, height: style.canvas.height };
     const styleScale = Math.min(w, h) / Math.max(1, Math.min(design.width, design.height));
 
-    this.destroyBaked();
     this.background.apply(style.background, w, h);
 
     const rect = fitScreenRect(w, h, meta.capture.widthPx, meta.capture.heightPx, style.screen.paddingPct);
@@ -240,10 +270,9 @@ export class SceneRenderer {
     this.screenContainer.position.set(rect.x, rect.y);
     this.screenSprite.position.set(0, 0);
 
-    const maskTexture = this.textureFromCanvas(
+    this.screenMask.texture = this.screenMaskBake.set(
       bakeMask(rect.width, rect.height, roundedRectPath(radiusPx)),
     );
-    this.screenMask.texture = maskTexture;
     this.screenMask.position.set(0, 0);
     this.screenMask.width = rect.width;
     this.screenMask.height = rect.height;
@@ -257,7 +286,7 @@ export class SceneRenderer {
       roundedRectPath(radiusPx),
     );
     if (screenShadow) {
-      this.screenShadow.texture = this.textureFromCanvas(screenShadow.canvas);
+      this.screenShadow.texture = this.screenShadowBake.set(screenShadow.canvas);
       this.screenShadow.position.set(rect.x - screenShadow.margin, rect.y - screenShadow.margin);
       this.screenShadow.width = rect.width + screenShadow.margin * 2;
       this.screenShadow.height = rect.height + screenShadow.margin * 2;
@@ -266,12 +295,18 @@ export class SceneRenderer {
       this.screenShadow.visible = false;
     }
 
-    const cam = fitWebcamRect(w, h, style.webcam.layout, style.webcam.sizePct);
+    const camStyle = style.webcam.cornerStyle;
+    const cam = fitWebcamRect(w, h, style.webcam.layout, style.webcam.sizePct, camStyle);
     this.webcamRect = cam;
-    const camPath = style.webcam.cornerStyle === 'squircle' ? squirclePath() : circlePath();
+    const camPath =
+      camStyle === 'squircle'
+        ? squirclePath()
+        : camStyle === 'rect'
+          ? roundedRectPath(cam.width * 0.12)
+          : circlePath();
 
     this.webcamContainer.position.set(cam.x, cam.y);
-    this.webcamMask.texture = this.textureFromCanvas(bakeMask(cam.width, cam.height, camPath));
+    this.webcamMask.texture = this.webcamMaskBake.set(bakeMask(cam.width, cam.height, camPath));
     this.webcamMask.position.set(0, 0);
     this.webcamMask.width = cam.width;
     this.webcamMask.height = cam.height;
@@ -285,7 +320,7 @@ export class SceneRenderer {
       camPath,
     );
     if (camShadow) {
-      this.webcamShadow.texture = this.textureFromCanvas(camShadow.canvas);
+      this.webcamShadow.texture = this.webcamShadowBake.set(camShadow.canvas);
       this.webcamShadow.position.set(cam.x - camShadow.margin, cam.y - camShadow.margin);
       this.webcamShadow.width = cam.width + camShadow.margin * 2;
       this.webcamShadow.height = cam.height + camShadow.margin * 2;
@@ -369,16 +404,4 @@ export class SceneRenderer {
     this.webcamSprite.position.set((cam.width - w) / 2, (cam.height - h) / 2);
   }
 
-  // ---------------------------------------------------------------- bakes
-
-  private textureFromCanvas(canvas: BakeCanvas): Texture {
-    const texture = new Texture({ source: new ImageSource({ resource: canvas }) });
-    this.bakedTextures.push(texture);
-    return texture;
-  }
-
-  private destroyBaked(): void {
-    for (const t of this.bakedTextures) t.destroy(true);
-    this.bakedTextures = [];
-  }
 }

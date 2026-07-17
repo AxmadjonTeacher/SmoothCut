@@ -17,6 +17,7 @@ import type { VideoEvent } from '@smoothcut/engine';
 import { runExport } from '@smoothcut/media';
 import type { AudioTrackInput } from '@smoothcut/media';
 import type { StreamClocks } from '@smoothcut/shared';
+import { WALLPAPER_URLS } from '../wallpapers';
 import type { ExportWorkerInit, HostToWorker, WorkerToHost } from './protocol';
 
 // NOTE: pixi.js is not a direct dependency of this app (pnpm isolation), so we
@@ -87,8 +88,12 @@ async function run(init: ExportWorkerInit): Promise<void> {
       width: settings.width,
       height: settings.height,
     });
+    renderer.setWallpaperUrls(WALLPAPER_URLS);
     renderer.applyProject(project, meta);
     renderer.setTracks(cursorTrack, zoomTrack, ripples);
+    // Wallpaper/image backgrounds load asynchronously; frame 0 must never
+    // show the fallback flash.
+    await renderer.waitForBackground();
     post({ type: 'log', message: 'scene renderer ready' });
 
     const shapeIds = [
