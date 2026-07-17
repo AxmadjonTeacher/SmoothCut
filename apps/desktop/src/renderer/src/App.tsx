@@ -5,7 +5,6 @@ const EditorRoot = lazy(() => import('./editor/EditorRoot'));
 const CaptureRoot = lazy(() => import('./capture/CaptureRoot'));
 const BubbleRoot = lazy(() => import('./capture/BubbleRoot'));
 const AreaPickerRoot = lazy(() => import('./area/AreaPickerRoot'));
-const CountdownRoot = lazy(() => import('./countdown/CountdownRoot'));
 const RecordingPillRoot = lazy(() => import('./recording/RecordingPillRoot'));
 
 export function App() {
@@ -23,8 +22,6 @@ export function App() {
         <BubbleRoot />
       ) : view === 'area-picker' ? (
         <AreaPickerRoot />
-      ) : view === 'countdown' ? (
-        <CountdownRoot />
       ) : view === 'recording-pill' ? (
         <RecordingPillRoot />
       ) : (

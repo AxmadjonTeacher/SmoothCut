@@ -16,8 +16,9 @@
  *   SMOOTHCUT_DEV_AREA="x,y,w,h"   with RECORD_SEC: area capture on the primary
  *                                  display (PHYSICAL px, display-relative).
  *   SMOOTHCUT_DEV_COUNTDOWN=3|5|10 with RECORD_SEC: use a countdown; with
- *                                  DEV_SHOT, screenshots the countdown overlay
- *                                  window mid-countdown.
+ *                                  DEV_SHOT, screenshots the first open window
+ *                                  (the toolbar renders the countdown)
+ *                                  mid-countdown.
  *   SMOOTHCUT_DEV_EXPORT_SIZE=3840x2160@30
  *                                  with DEV_EXPORT: export resolution/fps
  *                                  (default 1920x1080@30).
@@ -223,7 +224,8 @@ export function maybeStartDevHarness(
         if (DEV_AREA && !areaRect) throw new Error(`bad SMOOTHCUT_DEV_AREA: ${DEV_AREA}`);
         const countdownSec = parseCountdownSec(DEV_COUNTDOWN);
         if (countdownSec > 0 && SHOT_PATH) {
-          // Catch the countdown overlay (the only window) mid-countdown.
+          // Mid-countdown shot: the toolbar (when DEV_RECORDER opened one)
+          // renders the countdown; otherwise whatever window exists first.
           setTimeout(() => {
             const overlay = BrowserWindow.getAllWindows()[0];
             if (overlay) void screenshot(overlay, SHOT_PATH).catch(() => undefined);

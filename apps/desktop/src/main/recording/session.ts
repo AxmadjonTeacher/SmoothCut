@@ -24,7 +24,6 @@ import { send } from '../ipc/register.js';
 import {
   createBubbleWindow,
   createCaptureWindow,
-  createCountdownWindow,
   createRecordingPillWindow,
 } from '../windows/factory.js';
 
@@ -166,7 +165,6 @@ export class RecordingSession {
   private captureWindow: BrowserWindow | undefined;
   private bubbleWindow: BrowserWindow | undefined;
   private pillWindow: BrowserWindow | undefined;
-  private countdownWindow: BrowserWindow | undefined;
   private captureExpected = new Set<CaptureStreamKind>();
   private captureWindowReady: Deferred | undefined;
   private captureStarted: Deferred | undefined;
@@ -262,8 +260,8 @@ export class RecordingSession {
       }
 
       if (config.countdownSec > 0) {
-        // Click-through overlay on the capture display mirrors the countdown.
-        this.countdownWindow = createCountdownWindow(geometry.display.bounds);
+        // The recorder toolbar renders the countdown ('recording:status'
+        // pushes carry countdownRemaining) — no separate overlay window.
         this.setState('countdown');
         for (let remaining = config.countdownSec; remaining > 0; remaining -= 1) {
           this.countdownRemaining = remaining;
@@ -377,7 +375,6 @@ export class RecordingSession {
       this.geometry = geometry;
       this.displays = sources.displays;
       this.startedAtMonotonic = nowMonotonicMs();
-      this.closeCountdownWindow();
       this.startPowerBlocker();
       if (this.pillWindow && !this.pillWindow.isDestroyed()) {
         this.pillWindow.setOpacity(1);
@@ -534,9 +531,8 @@ export class RecordingSession {
     await this.captureSink.close();
   }
 
-  /** Destroys the capture/bubble/pill/countdown windows and clears the capture waiters. */
+  /** Destroys the capture/bubble/pill windows and clears the capture waiters. */
   private closeCaptureWindows(): void {
-    this.closeCountdownWindow();
     for (const win of [this.captureWindow, this.bubbleWindow, this.pillWindow]) {
       if (win && !win.isDestroyed()) win.destroy();
     }
@@ -547,12 +543,6 @@ export class RecordingSession {
     this.captureWindowReady = undefined;
     this.captureStarted = undefined;
     this.captureStopped = undefined;
-  }
-
-  private closeCountdownWindow(): void {
-    const win = this.countdownWindow;
-    this.countdownWindow = undefined;
-    if (win && !win.isDestroyed()) win.destroy();
   }
 
   private startPowerBlocker(): void {

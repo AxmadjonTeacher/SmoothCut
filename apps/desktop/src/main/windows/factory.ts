@@ -188,35 +188,6 @@ export function createRecordingPillWindow(displayBounds: Rect): BrowserWindow {
 }
 
 /**
- * Full-screen click-through countdown overlay on the capture display.
- * Never takes focus (the app being recorded keeps it).
- */
-export function createCountdownWindow(displayBounds: Rect): BrowserWindow {
-  const win = new BrowserWindow({
-    x: Math.round(displayBounds.x),
-    y: Math.round(displayBounds.y),
-    width: Math.round(displayBounds.width),
-    height: Math.round(displayBounds.height),
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    alwaysOnTop: true,
-    resizable: false,
-    movable: false,
-    hasShadow: false,
-    skipTaskbar: true,
-    focusable: false,
-    show: false,
-    webPreferences: { preload: PRELOAD, sandbox: false, backgroundThrottling: false },
-  });
-  win.setAlwaysOnTop(true, 'screen-saver');
-  win.setIgnoreMouseEvents(true);
-  win.once('ready-to-show', () => win.showInactive());
-  loadRenderer(win, { view: 'countdown' });
-  return win;
-}
-
-/**
  * Full-screen drag-select overlay for area capture. Focused so Esc/Enter work;
  * the renderer reports the result over the 'area:picked' invoke channel.
  * roundedCorners/enableLargerThanScreen plus the post-show setBounds re-assert
