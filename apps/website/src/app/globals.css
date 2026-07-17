@@ -272,16 +272,6 @@ img {
   color: var(--text-dim);
 }
 
-.dl-meta a {
-  color: var(--text-dim);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.dl-meta a:hover {
-  color: var(--text);
-}
-
 /* ------------------------------------------------------------ video demo */
 
 .demo-shell {
@@ -292,7 +282,7 @@ img {
 
 .demo-frame {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: linear-gradient(135deg, #1a1a1a, #0a0a0a 60%);

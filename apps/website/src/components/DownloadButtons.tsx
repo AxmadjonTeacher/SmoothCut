@@ -43,13 +43,7 @@ export function DownloadButtons() {
   return (
     <div className="hero-actions">
       <div className="download-row">{macFirst ? [macButton, winButton] : [winButton, macButton]}</div>
-      <p className="dl-meta">
-        Free, no account. Built on{' '}
-        <a href="https://github.com/AxmadjonTeacher/SmoothCut" target="_blank" rel="noreferrer">
-          GitHub Releases
-        </a>
-        .
-      </p>
+      <p className="dl-meta">Free, no account.</p>
     </div>
   );
 }
