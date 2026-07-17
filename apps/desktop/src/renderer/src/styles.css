@@ -1,0 +1,79 @@
+:root {
+  color-scheme: dark;
+  --bg: #131316;
+  --bg-raised: #1c1c21;
+  --bg-inset: #0e0e11;
+  --border: #2a2a31;
+  --text: #ececf1;
+  --text-dim: #9a9aa5;
+  --accent: #6d5ef5;
+  --accent-hover: #7e71f7;
+  --danger: #e5484d;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #26262d;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: transparent;
+}
+
+input,
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+input[type='range'] {
+  padding: 0;
+}
+
+.app-loading {
+  height: 100%;
+}

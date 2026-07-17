@@ -1,0 +1,85 @@
+/* Click-through countdown overlay (transparent fullscreen window). */
+
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.cd-badge {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(14, 14, 17, 0.72);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.45);
+}
+
+.cd-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.cd-ring-track,
+.cd-ring-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.cd-ring-track {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.cd-ring-fill {
+  stroke: #6d5ef5;
+  animation: cd-ring-drain 1s linear forwards;
+}
+
+@keyframes cd-ring-drain {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
+
+.cd-num {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 84px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 34px rgba(109, 94, 245, 0.6);
+  animation: cd-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes cd-pop {
+  from {
+    transform: scale(1.3);
+    opacity: 0.25;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.cd-label {
+  margin-top: 6px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
+}

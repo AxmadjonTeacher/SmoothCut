@@ -1,0 +1,7 @@
+# cargo
+/target/
+Cargo.lock
+
+# napi-cli build artifacts (the .node itself is ignored at the repo root)
+/index.js
+/index.d.ts

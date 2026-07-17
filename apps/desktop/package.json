@@ -1,0 +1,42 @@
+{
+  "name": "@smoothcut/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run --passWithNoTests",
+    "icons": "node scripts/generate-icons.mjs",
+    "package": "electron-vite build && electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@smoothcut/engine": "workspace:*",
+    "@smoothcut/media": "workspace:*",
+    "@smoothcut/native-mac": "workspace:*",
+    "@smoothcut/native-win": "workspace:*",
+    "@smoothcut/shared": "workspace:*",
+    "check-disk-space": "^3.4.0",
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9",
+    "immer": "^11.1.11",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "uiohook-napi": "^1.5.5",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.10"
+  }
+}

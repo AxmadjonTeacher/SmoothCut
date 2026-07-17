@@ -1,0 +1,50 @@
+# SmoothCut Windows native capture addon (napi-rs cdylib).
+#
+# Build (from this package, on Windows): napi build --platform --release --features napi
+# Type-check anywhere:
+#   cargo check                                        # host stubs (empty on non-Windows)
+#   cargo check --features napi                        # napi glue + stubs
+#   cargo check --target x86_64-pc-windows-msvc --features napi   # full Windows impl
+[package]
+name = "smoothcut-native-win"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+# TS wrapper lives in src/, Rust lives in rust/.
+path = "rust/lib.rs"
+crate-type = ["cdylib"]
+
+[features]
+default = []
+# Enables the N-API bindings; `napi build` passes `--features napi`.
+napi = ["dep:napi", "dep:napi-derive"]
+
+[dependencies]
+napi = { version = "3.10", optional = true }
+napi-derive = { version = "3.5", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+parking_lot = "0.12"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+windows-capture = "2.0"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Performance",
+  "Win32_System_Threading",
+  "Win32_UI_HiDpi",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"

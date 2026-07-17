@@ -1,0 +1,26 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+out/
+release/
+.turbo/
+*.tsbuildinfo
+
+# native builds
+packages/native-mac/.build/
+packages/native-mac/bin/
+packages/native-win/target/
+*.node
+
+# env / os
+.DS_Store
+.env
+.env.local
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/

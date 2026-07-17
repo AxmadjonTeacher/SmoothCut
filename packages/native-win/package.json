@@ -1,0 +1,32 @@
+{
+  "name": "@smoothcut/native-win",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "napi": {
+    "binaryName": "smoothcut-native-win",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:native": "napi build --platform --release --features napi",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@smoothcut/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.7.3",
+    "@types/node": "^26.1.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

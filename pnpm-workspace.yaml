@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+  - '@swc/core'
+  - uiohook-napi
+  - ffprobe-static
+  - ffmpeg-static
+  - electron-winstaller

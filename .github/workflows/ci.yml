@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build macOS native recorder
+        if: runner.os == 'macOS'
+        run: pnpm --filter @smoothcut/native-mac build:native
+      - name: Install Rust toolchain (Windows addon)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build Windows native capture addon
+        if: runner.os == 'Windows'
+        run: pnpm --filter @smoothcut/native-win build:native
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @smoothcut/desktop build

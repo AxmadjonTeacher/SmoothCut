@@ -1,0 +1,75 @@
+# electron-builder configuration for SmoothCut.
+#
+# Notes:
+# - Builds UNSIGNED on this machine (mac.identity: null). Before distribution
+#   you must sign with a Developer ID and notarize — see the README checklist.
+# - The Swift recorder binary is shipped OUTSIDE the asar via extraResources so
+#   main/native.ts finds it at process.resourcesPath/bin/smoothcut-recorder.
+# - @smoothcut/* workspace packages are bundled into out/ by electron-vite and
+#   must NOT be collected into node_modules (native-win alone carries a ~500MB
+#   rust target/ dir) — hence the negative patterns below.
+appId: com.smoothcut.app
+productName: SmoothCut
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - '!node_modules/@smoothcut/**'
+asar: true
+asarUnpack:
+  - '**/*.node'
+npmRebuild: false
+# .smoothcut projects are DIRECTORY bundles: isPackage makes macOS treat them
+# as opaque documents; on Windows the NSIS association only works for files,
+# so double-open of a project folder is macOS-only (see README).
+fileAssociations:
+  - ext: smoothcut
+    name: SmoothCut Project
+    description: SmoothCut screen recording project
+    role: Editor
+    isPackage: true
+# Placeholder generic update feed; inert until a real server exists and the
+# app runs with SMOOTHCUT_UPDATE_URL set (see main/updater.ts + README).
+publish:
+  provider: generic
+  url: https://updates.smoothcut.example/${os}/${arch}
+mac:
+  category: public.app-category.video
+  icon: resources/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  identity: null
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  extendInfo:
+    NSCameraUsageDescription: SmoothCut uses the camera only when you add a webcam to a recording.
+    NSMicrophoneUsageDescription: SmoothCut uses the microphone only when you add a mic track to a recording.
+    NSAudioCaptureUsageDescription: SmoothCut captures system audio only when you enable it for a recording.
+    # There is no official screen-capture usage-string key (TCC shows its own
+    # prompt); kept for App Store-style tooling that looks for one.
+    NSScreenCaptureUsageDescription: SmoothCut records your screen to create polished screen recordings.
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  extraResources:
+    - from: ../../packages/native-mac/bin
+      to: bin
+      filter:
+        - smoothcut-recorder
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  # Copies the napi addon when it has been built (no-op filter miss otherwise).
+  extraResources:
+    - from: ../../packages/native-win
+      to: bin
+      filter:
+        - smoothcut-native-win.win32-*.node
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
