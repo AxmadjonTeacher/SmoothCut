@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { mimeForPath, parseRangeHeader, resolveInside } from './paths.js';
 
 const base = '/bundles/abc.smoothcut';
 
 describe('resolveInside', () => {
   it('resolves plain relative paths inside the base', () => {
+    // resolveInside resolves against baseDir the same way node:path's
+    // resolve() does (drive-relative on Windows for a POSIX-style base like
+    // this fixture) — join() doesn't add a drive letter, so it diverges from
+    // the real implementation on Windows only. Match resolve() here instead.
     expect(resolveInside(base, 'recording/screen.mp4')).toBe(
-      join(base, 'recording', 'screen.mp4'),
+      resolve(base, 'recording', 'screen.mp4'),
     );
   });
 
