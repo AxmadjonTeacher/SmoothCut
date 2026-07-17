@@ -72,6 +72,31 @@ describe('lands on click', () => {
     expect(Math.abs(s.x - 0.55)).toBeLessThan(1e-3);
     expect(Math.abs(s.y - 0.25)).toBeLessThan(1e-3);
   });
+
+  it('stays continuous through a click mid-fast-motion (no teleport)', () => {
+    // Click lands while the spring is still lagging far behind a fast sweep —
+    // the old hard snap teleported the cursor here. The corrected track must
+    // move at most a few thousandths of the canvas per 240 Hz sample.
+    const clickT = 0.55;
+    const events = [...sweep(0.3, 0.55, 0.1, 0.1, 0.9, 0.8), down(clickT, 0.9, 0.8)];
+    for (const smoothing of [0.5, 1]) {
+      const track = CursorTrack.bake(events, 2, smoothing);
+      const dt = 1 / SPRING_SAMPLE_RATE;
+      let maxStep = 0;
+      let prev = track.sample(0);
+      for (let t = dt; t <= 1.5; t += dt) {
+        const s = track.sample(t);
+        maxStep = Math.max(maxStep, Math.hypot(s.x - prev.x, s.y - prev.y));
+        prev = s;
+      }
+      // Full-speed spring motion plus the eased click correction stays under
+      // ~3e-2 per sample; a hard snap shows up as a step of 0.1+.
+      expect(maxStep).toBeLessThan(0.04);
+      const at = track.sample(clickT);
+      expect(Math.abs(at.x - 0.9)).toBeLessThan(1e-3);
+      expect(Math.abs(at.y - 0.8)).toBeLessThan(1e-3);
+    }
+  });
 });
 
 describe('shake filter', () => {
