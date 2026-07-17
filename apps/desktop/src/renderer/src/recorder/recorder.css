@@ -613,6 +613,31 @@
   border-radius: 8px;
 }
 
+.perm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 7px;
+}
+
+.perm-row-name {
+  font-size: 11.5px;
+}
+
+.perm-row-ok {
+  color: #7fd88f;
+  font-size: 12px;
+}
+
 .settings-toggle {
   flex-direction: row;
   align-items: center;

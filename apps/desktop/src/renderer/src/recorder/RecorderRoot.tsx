@@ -11,6 +11,7 @@ import { DEFAULT_APP_SETTINGS } from '@smoothcut/shared';
 import type {
   CaptureSource,
   DisplayInfo,
+  PermissionKind,
   PermissionsStatus,
   RecordingConfig,
   RecordingStatus,
@@ -39,6 +40,28 @@ import {
   XIcon,
 } from './icons';
 import './recorder.css';
+
+const PERMISSION_ROWS: { kind: PermissionKind; title: string }[] = [
+  { kind: 'screen', title: 'Screen Recording' },
+  { kind: 'accessibility', title: 'Accessibility' },
+  { kind: 'camera', title: 'Camera' },
+  { kind: 'microphone', title: 'Microphone' },
+];
+
+// macOS only shows its own consent dialog the FIRST time a permission is
+// requested for an app — once an entry exists (even switched off, e.g. after
+// clicking "Don't Allow" or after a re-sign), asking again is a silent
+// no-op. Firing the request AND opening the right Settings pane every time
+// means this never dead-ends (mirrors PermissionsGate's "Grant Access").
+function grantAccess(kind: PermissionKind): void {
+  void sc.invoke('permissions:request', kind);
+  void sc.invoke('permissions:openSettings', kind);
+}
+
+function isPermGranted(perms: PermissionsStatus, kind: PermissionKind): boolean {
+  if (kind === 'accessibility') return perms.accessibility;
+  return perms[kind] === 'granted';
+}
 
 type Fps = 30 | 60;
 type CountdownSec = 0 | 3 | 5 | 10;
@@ -190,17 +213,23 @@ export default function RecorderRoot() {
     initialScreenPerm.current !== null &&
     initialScreenPerm.current !== 'granted';
 
-  // Initial permissions check + 2s poll while the gate is up (or first fetch failed).
+  // Initial permissions check + 2s poll while the gate is up (or first fetch
+  // failed), or while the settings panel is open — the Permissions checklist
+  // there covers camera/mic too, which don't block the gate (they're
+  // per-recording optional), so they need their own freshness window.
   useEffect(() => {
     void refreshPerms();
   }, [refreshPerms]);
   useEffect(() => {
-    if (!needsGate && perms !== null) return;
+    if (!needsGate && perms !== null && !gearOpen) return;
     const id = setInterval(() => {
       if (!document.hidden) void refreshPerms();
     }, 2000);
     return () => clearInterval(id);
-  }, [needsGate, perms, refreshPerms]);
+  }, [needsGate, perms, gearOpen, refreshPerms]);
+  useEffect(() => {
+    if (gearOpen) void refreshPerms();
+  }, [gearOpen, refreshPerms]);
 
   const refreshSources = useCallback(async (): Promise<Sources | null> => {
     try {
@@ -823,6 +852,30 @@ export default function RecorderRoot() {
 
           <div className={gearOpen ? 'settings-panel open' : 'settings-panel'} aria-hidden={!gearOpen}>
             <div className="settings-inner">
+              {sc.platform === 'darwin' && perms !== null ? (
+                <div className="settings-field settings-permissions">
+                  <span className="settings-label">Permissions</span>
+                  <div className="perm-rows">
+                    {PERMISSION_ROWS.map((row) => {
+                      const granted = isPermGranted(perms, row.kind);
+                      return (
+                        <div className="perm-row" key={row.kind}>
+                          <span className="perm-row-name">{row.title}</span>
+                          {granted ? (
+                            <span className="perm-row-ok" aria-label="Granted" title="Granted">
+                              ✓
+                            </span>
+                          ) : (
+                            <button type="button" className="mini" onClick={() => grantAccess(row.kind)}>
+                              Grant
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <div className="settings-cols">
                 <div className="settings-field">
                   <span className="settings-label">Frame rate</span>
