@@ -1,8 +1,10 @@
 # electron-builder configuration for SmoothCut.
 #
 # Notes:
-# - Builds UNSIGNED on this machine (mac.identity: null). Before distribution
-#   you must sign with a Developer ID and notarize — see the README checklist.
+# - Signs with the "Developer ID Application" identity below and notarizes
+#   (mac.notarize: true) whenever APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/
+#   APPLE_TEAM_ID are set — see apps/desktop/.env.local (gitignored, not in
+#   this repo) and the README "Signing & notarization" section.
 # - The Swift recorder binary is shipped OUTSIDE the asar via extraResources so
 #   main/native.ts finds it at process.resourcesPath/bin/smoothcut-recorder.
 # - @smoothcut/* workspace packages are bundled into out/ by electron-vite and
@@ -49,7 +51,8 @@ mac:
   icon: resources/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
-  identity: null
+  identity: 'Axmadjon Yodgorov (WLT22AM64S)'
+  notarize: true
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:

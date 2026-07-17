@@ -118,19 +118,26 @@ Notes:
 The Windows capture path is type-checked and unit-tested but has not been
 runtime-verified yet; treat the first Windows package as experimental.
 
-### Signing & notarization TODO (before distributing macOS builds)
+### Signing & notarization
 
-- [ ] Get a **Developer ID Application** certificate into the login keychain.
-- [ ] Remove `identity: null` from `electron-builder.yml` (hardened runtime and
-      `resources/entitlements.mac.plist` — camera, audio-input, JIT — are already set).
-- [ ] Notarize: `xcrun notarytool submit --wait` (or electron-builder's `notarize`
-      option with an App Store Connect API key) and staple the ticket.
-- [ ] macOS 15 (Sequoia) tightens screen-capture consent: a **valid signature is
-      required** for the monthly/weekly re-approval flow to behave, and the app must be
-      re-approved after signature changes. Re-test Screen Recording TCC on a clean
-      Sequoia VM after signing.
-- [ ] Re-test auto-update after signing — electron-updater on macOS refuses to install
-      updates into an unsigned/invalidly-signed app.
+Builds are signed with a **Developer ID Application** certificate
+(`mac.identity` in `electron-builder.yml`, must be present in the signing
+machine's login keychain — `security find-identity -v -p codesigning`) and
+notarized (`mac.notarize: true`, electron-builder staples the ticket
+automatically on success).
+
+Notarization needs three env vars, read from `apps/desktop/.env.local`
+(gitignored — never commit it):
+```
+APPLE_ID=<your Apple ID email>
+APPLE_APP_SPECIFIC_PASSWORD=<generated at appleid.apple.com>
+APPLE_TEAM_ID=<from developer.apple.com/account>
+```
+Load them before packaging: `set -a; source apps/desktop/.env.local; set +a`.
+
+Notarization is a real round-trip to Apple's notary service (usually a few
+minutes, occasionally longer) — `electron-builder --publish always` blocks
+until it completes or fails.
 
 ### Auto-update
 
