@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { DownloadButtons } from '@/components/DownloadButtons';
 import { SiteHeader } from '@/components/SiteHeader';
 import { VideoDemo } from '@/components/VideoDemo';
-import { REPO_URL } from '@/lib/links';
+import { DEVELOPER_URL, REPO_URL } from '@/lib/links';
 
 interface Feature {
   title: string;
@@ -123,8 +123,8 @@ export default function Home() {
       <footer className="site-footer wrap">
         <span>© {new Date().getFullYear()} SmoothCut</span>
         <div className="footer-links">
-          <a href={REPO_URL} target="_blank" rel="noreferrer">
-            GitHub
+          <a href={DEVELOPER_URL} target="_blank" rel="noreferrer">
+            Developer
           </a>
           <a href={`${REPO_URL}/releases`} target="_blank" rel="noreferrer">
             Releases

@@ -12,3 +12,4 @@ export const DOWNLOAD_LINKS = {
 
 export const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 export const REPO_URL = `https://github.com/${GITHUB_REPO}`;
+export const DEVELOPER_URL = 'https://www.instagram.com/axmadjon.dev/';

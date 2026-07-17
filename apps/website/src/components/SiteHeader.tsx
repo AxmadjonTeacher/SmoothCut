@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { REPO_URL } from '@/lib/links';
+import { DEVELOPER_URL } from '@/lib/links';
 
 /** True once the page has scrolled past `threshold`, updated on rAF-throttled scroll. */
 function useScrolled(threshold: number): boolean {
@@ -42,8 +42,8 @@ export function SiteHeader() {
         </a>
         <nav className="site-nav">
           <a href="#features">Features</a>
-          <a href={REPO_URL} target="_blank" rel="noreferrer">
-            GitHub
+          <a href={DEVELOPER_URL} target="_blank" rel="noreferrer">
+            Developer
           </a>
         </nav>
       </div>
