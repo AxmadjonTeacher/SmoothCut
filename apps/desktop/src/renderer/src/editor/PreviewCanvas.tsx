@@ -212,16 +212,23 @@ export function PreviewCanvas({
   // ------------------------------------------------------------------ video
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
     const onFrameReady = (): void => invalidate();
-    video.addEventListener('loadeddata', onFrameReady);
-    video.addEventListener('seeked', onFrameReady);
+    // The webcam element must invalidate too: on open (paused) the first
+    // render happens when the SCREEN frame is ready, which can be before the
+    // camera has decoded anything — without these listeners the webcam tile
+    // stays empty until something else forces a render.
+    const media = [videoRef.current, camRef.current].filter((el) => el !== null);
+    for (const el of media) {
+      el.addEventListener('loadeddata', onFrameReady);
+      el.addEventListener('seeked', onFrameReady);
+    }
     return () => {
-      video.removeEventListener('loadeddata', onFrameReady);
-      video.removeEventListener('seeked', onFrameReady);
+      for (const el of media) {
+        el.removeEventListener('loadeddata', onFrameReady);
+        el.removeEventListener('seeked', onFrameReady);
+      }
     };
-  }, [videoRef, invalidate]);
+  }, [videoRef, camRef, invalidate]);
 
   // While paused, keep the video element on the mapped playhead frame.
   useEffect(() => {
