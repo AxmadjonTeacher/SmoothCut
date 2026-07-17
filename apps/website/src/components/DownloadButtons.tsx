@@ -1,16 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { DOWNLOAD_LINKS } from '@/lib/links';
-
-type DetectedOs = 'mac' | 'windows' | 'other';
-
-function detectOs(): DetectedOs {
-  const platform = `${navigator.userAgent} ${navigator.platform}`.toLowerCase();
-  if (platform.includes('mac')) return 'mac';
-  if (platform.includes('win')) return 'windows';
-  return 'other';
-}
+import { useDetectedOs } from '@/lib/useDetectedOs';
 
 const APPLE_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -26,12 +17,7 @@ const WINDOWS_ICON = (
 
 /** Both platforms have real releases now — highlights whichever OS the visitor is on. */
 export function DownloadButtons() {
-  const [os, setOs] = useState<DetectedOs | null>(null);
-
-  useEffect(() => {
-    setOs(detectOs());
-  }, []);
-
+  const os = useDetectedOs();
   const macFirst = os !== 'windows';
 
   const macButton = (

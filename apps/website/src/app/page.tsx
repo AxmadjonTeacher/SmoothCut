@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { DownloadButtons } from '@/components/DownloadButtons';
+import { SiteHeader } from '@/components/SiteHeader';
 import { VideoDemo } from '@/components/VideoDemo';
 import { REPO_URL } from '@/lib/links';
 
@@ -75,18 +76,7 @@ const FEATURES: Feature[] = [
 export default function Home() {
   return (
     <>
-      <header className="wrap site-header">
-        <a href="/" className="brand">
-          <img src="/icon.png" alt="" width={28} height={28} />
-          SmoothCut
-        </a>
-        <nav className="site-nav">
-          <a href="#features">Features</a>
-          <a href={REPO_URL} target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="hero wrap">
         <div className="hero-glow" />

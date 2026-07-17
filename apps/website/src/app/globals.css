@@ -47,11 +47,64 @@ img {
 
 /* --------------------------------------------------------------- header */
 
-.site-header {
+.site-header-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 20px 24px 0;
+  pointer-events: none;
+  animation: header-drop 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes header-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.site-header-inner {
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--max-width);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 0;
+  gap: 20px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition:
+    max-width 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease,
+    backdrop-filter 0.4s ease;
+}
+
+.site-header-wrap.scrolled .site-header-inner {
+  max-width: 480px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border-color: var(--border);
+  background: rgba(23, 23, 27, 0.55);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 .brand {
@@ -61,6 +114,7 @@ img {
   font-weight: 700;
   font-size: 16px;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .brand img {
@@ -75,6 +129,7 @@ img {
   gap: 22px;
   font-size: 14px;
   color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .site-nav a {
@@ -85,11 +140,19 @@ img {
   color: var(--text);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .site-header-wrap,
+  .site-header-inner {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* ----------------------------------------------------------------- hero */
 
 .hero {
   position: relative;
-  padding: 72px 0 56px;
+  padding: 150px 0 56px;
   text-align: center;
   overflow: hidden;
 }
@@ -106,7 +169,7 @@ img {
   z-index: 0;
 }
 
-.hero > * {
+.hero > *:not(.hero-glow) {
   position: relative;
   z-index: 1;
 }
