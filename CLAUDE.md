@@ -52,6 +52,7 @@ before you report done.
 | `packages/media` | mediabunny demux/mux + WebCodecs encode, audio mixdown, RNNoise | |
 | `packages/native-mac` | Swift ScreenCaptureKit binary (`bin/smoothcut-recorder`) + TS wrapper (JSON-lines stdio) | `showsCursor=false`, window exclusion |
 | `packages/native-win` | napi-rs addon over windows-capture v2 | compiles in CI; **never runtime-tested on real Windows yet** |
+| `apps/website` | Marketing site (Next.js, deploys to Vercel as smoothcut.app) | download buttons link `github.com/AxmadjonTeacher/SmoothCut/releases/latest/download/...` — filenames must stay `${version}`-free in `electron-builder.yml` or the links break on every release |
 
 Recording bundles: `~/Movies/SmoothCut/<uuid>.smoothcut/` —
 `project.json`, `meta.json`, `recording/{screen.mp4, camera.webm, mic.webm,

@@ -10,6 +10,9 @@
 #   rust target/ dir) — hence the negative patterns below.
 appId: com.smoothcut.app
 productName: SmoothCut
+# No ${version} in artifactName: the website's download buttons link to
+# GitHub's /releases/latest/download/<exact filename> permalink, which only
+# stays stable across releases if the filename itself never changes.
 directories:
   output: release
   buildResources: resources
@@ -54,6 +57,7 @@ mac:
       arch: [arm64]
     - target: zip
       arch: [arm64]
+  artifactName: '${productName}-mac-${arch}.${ext}'
   extraResources:
     - from: ../../packages/native-mac/bin
       to: bin
@@ -64,6 +68,7 @@ win:
   target:
     - target: nsis
       arch: [x64]
+  artifactName: '${productName}-win-${arch}-setup.${ext}'
   # Copies the napi addon when it has been built (no-op filter miss otherwise).
   extraResources:
     - from: ../../packages/native-win
