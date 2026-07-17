@@ -46,6 +46,9 @@ publish:
   provider: github
   owner: AxmadjonTeacher
   repo: SmoothCut
+  # electron-builder defaults to creating a draft — publish straight to a
+  # real release so /releases/latest resolves immediately, no manual un-draft.
+  releaseType: release
 mac:
   category: public.app-category.video
   icon: resources/icon.icns

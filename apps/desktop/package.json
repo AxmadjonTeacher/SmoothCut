@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run --passWithNoTests",
     "icons": "node scripts/generate-icons.mjs",
-    "package": "electron-vite build && electron-builder --config electron-builder.yml"
+    "package": "electron-vite build && electron-builder --config electron-builder.yml",
+    "release": "electron-vite build && electron-builder --config electron-builder.yml --publish always"
   },
   "dependencies": {
     "@smoothcut/engine": "workspace:*",

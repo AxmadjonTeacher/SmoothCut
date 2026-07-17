@@ -1,0 +1,41 @@
+name: Release Windows
+
+# No physical Windows machine needed: windows-latest builds the napi-rs
+# addon, packages the NSIS installer, and publishes it as an asset on the
+# existing GitHub Release for the current apps/desktop/package.json version
+# (electron-builder adds to a release that already exists rather than
+# erroring, so this can run independently of the macOS release step).
+#
+# Unsigned for now (no Windows code-signing cert yet) — SmartScreen will show
+# a "Windows protected your PC" warning with a "More info -> Run anyway"
+# escape hatch until we get one.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Rust toolchain (Windows addon)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build Windows native capture addon
+        run: pnpm --filter @smoothcut/native-win build:native
+      - name: Build, package, and publish
+        run: pnpm --filter @smoothcut/desktop release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
