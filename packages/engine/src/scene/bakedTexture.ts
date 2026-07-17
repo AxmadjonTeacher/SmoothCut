@@ -22,7 +22,12 @@ export class BakedTexture {
   set(canvas: BakeCanvas): Texture {
     if (!this.source || !this.texture) {
       this.source = new ImageSource({ resource: canvas });
-      this.texture = new Texture({ source: this.source });
+      // dynamic is load-bearing: pixi Sprites only subscribe to texture
+      // 'update' events on dynamic textures. Without it, an in-place re-bake
+      // at a NEW size never invalidates the sprite's cached local bounds, and
+      // a mask sprite then clips its container to the OLD bake's rect
+      // (webcam stuck at the previous layout's size until app restart).
+      this.texture = new Texture({ source: this.source, dynamic: true });
       return this.texture;
     }
     this.source.resource = canvas;
