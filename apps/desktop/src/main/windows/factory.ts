@@ -36,6 +36,13 @@ export function createRecorderWindow(): BrowserWindow {
     height: RECORDER_H,
     frame: false,
     transparent: true,
+    // Native transparent background BEFORE first paint — the renderer's own
+    // `background: transparent` is only applied by a useEffect, which runs
+    // after React's first paint. ready-to-show can fire before that effect
+    // runs, so without this the window briefly shows opaque at full window
+    // size (760x560) before snapping to just the small pill — a visible
+    // flash on every launch.
+    backgroundColor: '#00000000',
     resizable: false,
     fullscreenable: false,
     maximizable: false,
@@ -132,6 +139,7 @@ export function createBubbleWindow(deviceId: string, position?: { x: number; y: 
     height: 240,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
@@ -163,6 +171,7 @@ export function createRecordingPillWindow(displayBounds: Rect): BrowserWindow {
     height: RECORDING_PILL_H,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
@@ -190,6 +199,7 @@ export function createCountdownWindow(displayBounds: Rect): BrowserWindow {
     height: Math.round(displayBounds.height),
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: false,
     movable: false,
@@ -224,6 +234,7 @@ export function createAreaPickerWindow(displayId: string, displayBounds: Rect): 
     ...bounds,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: false,
     movable: false,
