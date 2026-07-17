@@ -8,7 +8,11 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: smoothcut:; media-src 'self' blob: smoothcut:; connect-src 'self' blob: data: smoothcut:; worker-src 'self' blob:"
     />
   </head>
-  <body style="margin: 0; background: #111">
+  <!-- No background here: most windows are transparent overlays, and any
+       opaque color painted before first paint flashes on screen. Opaque
+       views (the editor) opt in via body.view-opaque (set in main.tsx),
+       and their BrowserWindow backgroundColor covers the pre-JS gap. -->
+  <body style="margin: 0">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

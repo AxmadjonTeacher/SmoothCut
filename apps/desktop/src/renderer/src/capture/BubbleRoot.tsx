@@ -31,10 +31,6 @@ export default function BubbleRoot() {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    // The bubble window is transparent; the page must be too.
-    document.documentElement.style.background = 'transparent';
-    document.body.style.background = 'transparent';
-
     const deviceId = new URLSearchParams(window.location.search).get('deviceId') ?? '';
     let stream: MediaStream | null = null;
     let cancelled = false;

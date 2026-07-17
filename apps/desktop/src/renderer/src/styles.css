@@ -23,8 +23,20 @@ body,
   height: 100%;
 }
 
+/* Transparent by default: most windows are frameless overlays, and the first
+   painted frame must never be an opaque rectangle (it flashes on screen
+   before React mounts). Opaque views add .view-opaque in main.tsx, which
+   runs before the first render. */
+html,
 body {
+  background: transparent;
+}
+
+body.view-opaque {
   background: var(--bg);
+}
+
+body {
   color: var(--text);
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;

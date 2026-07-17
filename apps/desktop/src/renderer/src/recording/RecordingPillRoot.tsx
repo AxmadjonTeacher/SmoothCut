@@ -46,12 +46,6 @@ export default function RecordingPillRoot() {
   const elapsedMs = useElapsedMs(status);
 
   useEffect(() => {
-    // Transparent window — the page must not paint a background.
-    document.documentElement.style.background = 'transparent';
-    document.body.style.background = 'transparent';
-  }, []);
-
-  useEffect(() => {
     void sc
       .invoke('recording:status')
       .then(setStatus)

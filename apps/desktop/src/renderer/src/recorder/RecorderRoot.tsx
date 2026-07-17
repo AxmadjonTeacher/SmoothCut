@@ -172,12 +172,6 @@ export default function RecorderRoot() {
 
   const elapsedMs = useElapsedMs(status);
 
-  // Transparent window: only the pill and its panels may paint.
-  useEffect(() => {
-    document.documentElement.style.background = 'transparent';
-    document.body.style.background = 'transparent';
-  }, []);
-
   // Toasts self-dismiss.
   useEffect(() => {
     if (toast === null) return;

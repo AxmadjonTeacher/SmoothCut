@@ -83,6 +83,9 @@ export function createEditorWindow(
     height: 900,
     minWidth: 1100,
     minHeight: 700,
+    // The document defaults to a transparent background (overlay windows need
+    // it); this native color fills the editor until body.view-opaque applies.
+    backgroundColor: '#131316',
     show: false,
     webPreferences: { preload: PRELOAD, sandbox: false },
   });

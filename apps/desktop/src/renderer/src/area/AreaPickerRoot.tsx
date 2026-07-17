@@ -36,12 +36,6 @@ export default function AreaPickerRoot() {
   const [drag, setDrag] = useState<DragState | null>(null);
   const doneRef = useRef(false);
 
-  useEffect(() => {
-    // The overlay window is transparent; only our dim layers may paint.
-    document.documentElement.style.background = 'transparent';
-    document.body.style.background = 'transparent';
-  }, []);
-
   const finish = useCallback((rect: Rect | null) => {
     if (doneRef.current) return;
     doneRef.current = true;
