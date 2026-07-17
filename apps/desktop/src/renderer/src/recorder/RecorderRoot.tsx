@@ -846,7 +846,9 @@ export default function RecorderRoot() {
 
           <div className={gearOpen ? 'settings-panel open' : 'settings-panel'} aria-hidden={!gearOpen}>
             <div className="settings-inner">
-              {sc.platform === 'darwin' && perms !== null ? (
+              {sc.platform === 'darwin' &&
+              perms !== null &&
+              PERMISSION_ROWS.some((row) => !isPermGranted(perms, row.kind)) ? (
                 <div className="settings-field settings-permissions">
                   <span className="settings-label">Permissions</span>
                   <div className="perm-rows">
