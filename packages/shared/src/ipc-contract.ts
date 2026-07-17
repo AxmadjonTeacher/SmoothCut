@@ -47,6 +47,11 @@ export interface ExportSettings {
   destination: string;
 }
 
+/** Outcome reported to main for a native completion notification. */
+export type ExportNotifyResult =
+  | { ok: true; destination: string; sizeBytes: number }
+  | { ok: false; message: string };
+
 export interface IpcInvokeMap {
   'app:version': () => string;
   /**
@@ -90,6 +95,12 @@ export interface IpcInvokeMap {
   /** Closes the .part file and renames it into place; reports the final size. */
   'export:finalize': (exportId: string) => { sizeBytes: number };
   'export:abort': (exportId: string) => void;
+  /**
+   * Renderer → main: an export finished while its dialog was closed/
+   * backgrounded — ask for a native OS notification. No-ops where
+   * Notification isn't supported.
+   */
+  'notify:exportFinished': (result: ExportNotifyResult) => void;
   'shell:showItemInFolder': (path: string) => void;
   'settings:get': () => AppSettings;
   'settings:set': (patch: Partial<AppSettings>) => AppSettings;
@@ -116,6 +127,8 @@ export interface IpcEventMap {
   'capture:command': CaptureCommand;
   'hotkey:toggleRecording': void;
   'project:opened': { projectId: string };
+  /** User clicked a failed-export notification; reopen the export dialog. */
+  'export:reopenDialog': void;
 }
 
 /** Commands sent to the hidden capture window (webcam/mic/system audio). */

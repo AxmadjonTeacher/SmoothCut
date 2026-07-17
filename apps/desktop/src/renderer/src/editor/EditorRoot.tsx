@@ -34,6 +34,8 @@ import { Timeline } from './Timeline';
 import { Sidebar } from './Sidebar';
 import { DevAutoExport, parseDevExportSize } from './DevAutoExport';
 import { ExportDialog } from './ExportDialog';
+import { ExportProvider, useExportContext } from './ExportContext';
+import { ExportStatusPill } from './ExportStatusPill';
 import { FolderIcon } from '../recorder/icons';
 import './editor.css';
 
@@ -107,7 +109,11 @@ export default function EditorRoot({ projectId }: { projectId: string }) {
       </div>
     );
   }
-  return <EditorShell projectId={projectId} bundle={loaded} />;
+  return (
+    <ExportProvider>
+      <EditorShell projectId={projectId} bundle={loaded} />
+    </ExportProvider>
+  );
 }
 
 function deleteSelection(): void {
@@ -183,8 +189,9 @@ function EditorShell({ projectId, bundle }: { projectId: string; bundle: LoadedB
   const pickingZoomId = useEditor((s) => s.pickingZoomId);
 
   const [tuning, setTuning] = useState<SpringTuning>(DEFAULT_SPRING_TUNING);
-  const [exportOpen, setExportOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const { state: exportState, dialogOpen: exportOpen, openDialog: openExport, closeDialog: closeExport, reset: resetExport } =
+    useExportContext();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camRef = useRef<HTMLVideoElement | null>(null);
@@ -317,9 +324,17 @@ function EditorShell({ projectId, bundle }: { projectId: string; bundle: LoadedB
         <ExportFolderButton />
         {dirty ? <span className="editor-dirty" title="Unsaved changes">●</span> : null}
         <div className="editor-header-spacer" />
-        <button type="button" className="primary" onClick={() => setExportOpen(true)}>
-          Export
-        </button>
+        {!exportOpen && exportState.phase !== 'idle' ? (
+          <ExportStatusPill
+            state={exportState}
+            onClick={openExport}
+            onDismiss={resetExport}
+          />
+        ) : (
+          <button type="button" className="primary" onClick={openExport}>
+            Export
+          </button>
+        )}
       </header>
 
       <div className="editor-main">
@@ -357,7 +372,7 @@ function EditorShell({ projectId, bundle }: { projectId: string; bundle: LoadedB
           meta={meta}
           urls={urls}
           events={events}
-          onClose={() => setExportOpen(false)}
+          onClose={closeExport}
         />
       ) : null}
 

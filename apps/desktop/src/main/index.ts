@@ -72,7 +72,7 @@ if (!app.requestSingleInstanceLock()) {
       broadcast('recording:status', status);
     },
     onFinalized: (projectId) => {
-      if (!devHarnessActive() || devEditorOnFinalize()) createEditorWindow(projectId);
+      if (!devHarnessActive() || devEditorOnFinalize()) createEditorWindow(projectId, {}, exportSink);
       broadcast('project:opened', { projectId });
     },
   });
@@ -150,7 +150,7 @@ if (!app.requestSingleInstanceLock()) {
       exports: exportSink,
       settings,
       openEditor: (projectId) => {
-        createEditorWindow(projectId);
+        createEditorWindow(projectId, {}, exportSink);
       },
       onSettingsChanged: (next) => {
         const prev = registeredHotkey;
@@ -185,7 +185,7 @@ if (!app.requestSingleInstanceLock()) {
         projects,
         toggleRecording,
         openRecorder: showRecorderWindow,
-        openEditor: (projectId) => createEditorWindow(projectId),
+        openEditor: (projectId) => createEditorWindow(projectId, {}, exportSink),
       });
       tray.create();
       showRecorderWindow();

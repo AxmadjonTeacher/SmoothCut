@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, dialog, screen } from 'electron';
 import type { Rect } from '@smoothcut/shared';
+import type { ExportFileSink } from '../export/fileSink.js';
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.mjs');
 const RENDERER_HTML = join(import.meta.dirname, '../renderer/index.html');
@@ -65,7 +66,11 @@ export function createRecorderWindow(): BrowserWindow {
   return win;
 }
 
-export function createEditorWindow(projectId: string, extraQuery: Query = {}): BrowserWindow {
+export function createEditorWindow(
+  projectId: string,
+  extraQuery: Query = {},
+  exportSink?: ExportFileSink,
+): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -74,6 +79,35 @@ export function createEditorWindow(projectId: string, extraQuery: Query = {}): B
     show: false,
     webPreferences: { preload: PRELOAD, sandbox: false },
   });
+  // A backgrounded export survives the dialog closing but not the window
+  // closing (its Worker dies with the webContents) — confirm before losing it.
+  if (exportSink) {
+    let allowClose = false;
+    win.on('close', (event) => {
+      if (allowClose) return;
+      const activeExportId = exportSink.activeExportIdForWindow(win.webContents.id);
+      if (!activeExportId) return;
+      event.preventDefault();
+      void dialog
+        .showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Keep Exporting', 'Stop Export && Close'],
+          defaultId: 0,
+          cancelId: 0,
+          message: 'Export in progress',
+          detail: "This export hasn't finished. Closing now cancels it and deletes the partial file.",
+        })
+        .then(({ response }) => (response === 1 ? exportSink.abort(activeExportId) : undefined))
+        .then(() => {
+          allowClose = true;
+          win.close();
+        })
+        .catch(() => {
+          allowClose = true;
+          win.close();
+        });
+    });
+  }
   win.once('ready-to-show', () => win.show());
   loadRenderer(win, { view: 'editor', projectId, ...extraQuery });
   return win;

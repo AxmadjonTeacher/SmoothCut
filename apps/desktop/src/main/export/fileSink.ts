@@ -11,6 +11,8 @@ interface ExportJob {
   destination: string;
   /** Current file extent; appends land here, positional writes may rewrite inside it. */
   size: number;
+  /** Owning renderer's webContents.id — lets a window's close guard find its job. */
+  windowId: number;
 }
 
 /**
@@ -51,15 +53,27 @@ export class ExportFileSink {
     return result.canceled ? null : (result.filePaths[0] ?? null);
   }
 
-  async begin(_projectId: string, settings: ExportSettings): Promise<{ exportId: string }> {
+  async begin(
+    _projectId: string,
+    settings: ExportSettings,
+    windowId: number,
+  ): Promise<{ exportId: string }> {
     if (!settings.destination || dirname(settings.destination) === settings.destination) {
       throw new Error('export-destination-invalid');
     }
     const exportId = randomUUID();
     const partPath = `${settings.destination}.part`;
     const fh = await open(partPath, 'w');
-    this.jobs.set(exportId, { fh, partPath, destination: settings.destination, size: 0 });
+    this.jobs.set(exportId, { fh, partPath, destination: settings.destination, size: 0, windowId });
     return { exportId };
+  }
+
+  /** The active export owned by a given window, if any (one job per window). */
+  activeExportIdForWindow(windowId: number): string | undefined {
+    for (const [exportId, job] of this.jobs) {
+      if (job.windowId === windowId) return exportId;
+    }
+    return undefined;
   }
 
   async writeChunk(exportId: string, chunk: ArrayBuffer, position: number | null): Promise<void> {

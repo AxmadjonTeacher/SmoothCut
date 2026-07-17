@@ -13,6 +13,7 @@ import { nowMonotonicMs } from '../recording/clock.js';
 import type { RecordingSession } from '../recording/session.js';
 import type { ProjectStore } from '../project/store.js';
 import type { ExportFileSink } from '../export/fileSink.js';
+import { showExportNotification } from '../export/notify.js';
 import type { SettingsStore } from '../settings.js';
 
 type MaybePromise<T> = T | Promise<T>;
@@ -103,12 +104,24 @@ export function registerIpc(deps: IpcDeps): void {
     if (dir !== null) deps.settings.set({ exportDefaults: { ...current, directory: dir } });
     return dir;
   });
-  handle('export:begin', (projectId, settings) => deps.exports.begin(projectId, settings));
+  // Needs event.sender (owning window), which the generic handle() wrapper discards.
+  ipcMain.handle(
+    'export:begin',
+    (event, projectId: string, settings: Parameters<IpcInvokeMap['export:begin']>[1]) =>
+      deps.exports.begin(projectId, settings, event.sender.id),
+  );
   handle('export:writeChunk', (exportId, chunk, position) =>
     deps.exports.writeChunk(exportId, chunk, position),
   );
   handle('export:finalize', (exportId) => deps.exports.finalize(exportId));
   handle('export:abort', (exportId) => deps.exports.abort(exportId));
+  ipcMain.handle(
+    'notify:exportFinished',
+    (event, result: Parameters<IpcInvokeMap['notify:exportFinished']>[0]) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (win) showExportNotification(win, result, () => send(win, 'export:reopenDialog', undefined));
+    },
+  );
 
   handle('shell:showItemInFolder', (path) => {
     shell.showItemInFolder(path);

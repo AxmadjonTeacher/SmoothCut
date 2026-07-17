@@ -4,7 +4,7 @@ import type { BundleUrls, ProjectFile, RecordingMeta } from '@smoothcut/shared';
 import type { VideoEvent } from '@smoothcut/engine';
 import { probeExportSupport } from '@smoothcut/media';
 import type { ExportSupport } from '@smoothcut/media';
-import { useExport } from './useExport';
+import { useExportContext } from './ExportContext';
 import { formatBytes, formatEta, resolutionTiers, resolveCanvasSize } from './util';
 import type { ResolutionTier } from './util';
 
@@ -32,7 +32,7 @@ interface ExportDialogProps {
 }
 
 export function ExportDialog({ projectId, project, meta, urls, events, onClose }: ExportDialogProps) {
-  const { state, start, cancel, reset } = useExport();
+  const { state, start, cancel, reset } = useExportContext();
 
   const canvas = resolveCanvasSize(project, meta);
   const tiers = useMemo(() => resolutionTiers(canvas.width, canvas.height), [canvas.width, canvas.height]);
@@ -67,8 +67,6 @@ export function ExportDialog({ projectId, project, meta, urls, events, onClose }
     else if (selected4k && no4k60 && fps === 60) setFps(30);
   }, [selected4k, no4k, no4k60, fps]);
 
-  const running = state.phase === 'running';
-
   const pickDestination = async (): Promise<string | null> => {
     const picked = await window.smoothcut.invoke('export:pickDestination', `${project.name}.mp4`);
     if (picked) setDestination(picked);
@@ -91,8 +89,9 @@ export function ExportDialog({ projectId, project, meta, urls, events, onClose }
     });
   };
 
+  // Closing just hides the dialog — a running export keeps going headlessly
+  // (see ExportContext); reset() is a no-op while a job is still active.
   const close = (): void => {
-    if (running) return;
     reset();
     onClose();
   };
