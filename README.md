@@ -132,15 +132,20 @@ runtime-verified yet; treat the first Windows package as experimental.
 - [ ] Re-test auto-update after signing — electron-updater on macOS refuses to install
       updates into an unsigned/invalidly-signed app.
 
-### Auto-update TODO
+### Auto-update
 
-`main/updater.ts` wires `electron-updater` with a **generic** provider but is inert by
-design: it only activates when the app is packaged **and** `SMOOTHCUT_UPDATE_URL` is
-set (the placeholder feed `https://updates.smoothcut.example/${os}/${arch}` from
-`electron-builder.yml` is baked into `app-update.yml`). Before it can actually update:
+`main/updater.ts` wires `electron-updater` with the **github** provider — the feed
+(owner/repo, from `electron-builder.yml`'s `publish` block) is baked into
+`app-update.yml` at build time, so there is no server of our own to run. It activates
+whenever the app is packaged (`app.isPackaged`); no env var needed.
 
-- [ ] Stand up a static update server (any HTTPS host serving `latest-mac.yml`,
-      `latest.yml`, and the artifacts that `electron-builder --publish` emits).
-- [ ] Point `publish.url` (and `SMOOTHCUT_UPDATE_URL`, or drop the env gate) at it.
-- [ ] Sign the app (macOS hard requirement; Windows strongly recommended for
-      SmartScreen).
+Publishing a release: `GH_TOKEN=$(gh auth token) pnpm --filter @smoothcut/desktop package -- --publish always`
+(or set `GH_TOKEN`/`GITHUB_TOKEN` and add `--publish always`) creates/updates the
+GitHub Release for the current `package.json` version and uploads the installers plus
+`latest-mac.yml`/`latest.yml` and `.blockmap` files that `electron-updater` needs to
+detect and diff-download new versions.
+
+- [ ] Sign the app (macOS hard requirement — Squirrel.Mac refuses to install updates
+      into an unsigned/invalidly-signed app; Windows strongly recommended for
+      SmartScreen). Until then, `checkForUpdatesAndNotify()` can still detect and
+      download a new version, it just can't self-install it.

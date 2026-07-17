@@ -1,12 +1,12 @@
 /**
- * Auto-update wiring (config-level only for now). Deliberately inert unless
- * BOTH hold:
- *   - the app is packaged (electron-updater refuses dev builds anyway), and
- *   - SMOOTHCUT_UPDATE_URL points at a generic update server.
+ * Auto-update: checks GitHub Releases for a newer version. The feed (owner/
+ * repo) is baked into app-update.yml at build time from electron-builder.yml's
+ * `publish` block — no server of our own to run.
  *
- * A real update server plus code signing (macOS REQUIRES a signed app for
- * updates to install) are needed before this does anything useful — see the
- * README "Auto-update" section. Never throws: updates are best-effort.
+ * Best-effort and silent: an unsigned build can check for and download an
+ * update, but Squirrel.Mac requires a consistently signed app to actually
+ * install it, so this stays a harmless no-op on failure until the app is
+ * code-signed (see README "Auto-update").
  */
 import { app } from 'electron';
 import type { AppUpdater } from 'electron-updater';
@@ -22,17 +22,15 @@ function resolveAutoUpdater(mod: unknown): AppUpdater | undefined {
 }
 
 export function initUpdater(): void {
-  const url = process.env.SMOOTHCUT_UPDATE_URL;
-  if (!app.isPackaged || !url) return;
+  if (!app.isPackaged) return;
   void (async () => {
     try {
       const autoUpdater = resolveAutoUpdater(await import('electron-updater'));
       if (!autoUpdater) return;
-      autoUpdater.setFeedURL({ provider: 'generic', url });
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.on('error', () => {
-        // Unreachable server / unsigned build — never surface at startup.
+        // Unreachable feed / unsigned build — never surface at startup.
       });
       await autoUpdater.checkForUpdatesAndNotify();
     } catch {

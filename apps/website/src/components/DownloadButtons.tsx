@@ -3,13 +3,8 @@
 import { useEffect, useState } from 'react';
 import { DOWNLOAD_LINKS } from '@/lib/links';
 
-type DetectedOs = 'mac' | 'windows' | 'other';
-
-function detectOs(): DetectedOs {
-  const platform = `${navigator.userAgent} ${navigator.platform}`.toLowerCase();
-  if (platform.includes('mac')) return 'mac';
-  if (platform.includes('win')) return 'windows';
-  return 'other';
+function isWindows(): boolean {
+  return `${navigator.userAgent} ${navigator.platform}`.toLowerCase().includes('win');
 }
 
 const APPLE_ICON = (
@@ -24,48 +19,34 @@ const WINDOWS_ICON = (
   </svg>
 );
 
-/** Highlights the visitor's own OS; both platforms are always offered. */
+/** Only macOS has a real release — Windows is shown as an honest disabled badge. */
 export function DownloadButtons() {
-  const [os, setOs] = useState<DetectedOs | null>(null);
+  const [windowsVisitor, setWindowsVisitor] = useState(false);
 
   useEffect(() => {
-    setOs(detectOs());
+    setWindowsVisitor(isWindows());
   }, []);
-
-  const macFirst = os !== 'windows';
-
-  const macButton = (
-    <a
-      key="mac"
-      href={DOWNLOAD_LINKS.mac}
-      className={`dl-btn ${macFirst ? 'primary' : ''}`}
-    >
-      {APPLE_ICON}
-      <span>
-        Download for Mac
-        <small>Apple Silicon · macOS 13+</small>
-      </span>
-    </a>
-  );
-
-  const winButton = (
-    <a
-      key="win"
-      href={DOWNLOAD_LINKS.windows}
-      className={`dl-btn ${macFirst ? '' : 'primary'}`}
-    >
-      {WINDOWS_ICON}
-      <span>
-        Download for Windows
-        <small>Windows 10/11 · 64-bit</small>
-      </span>
-    </a>
-  );
 
   return (
     <div className="hero-actions">
-      <div className="download-row">{macFirst ? [macButton, winButton] : [winButton, macButton]}</div>
+      <div className="download-row">
+        <a href={DOWNLOAD_LINKS.mac} className="dl-btn primary">
+          {APPLE_ICON}
+          <span>
+            Download for Mac
+            <small>Apple Silicon · macOS 13+</small>
+          </span>
+        </a>
+        <span className="dl-btn disabled" aria-disabled="true">
+          {WINDOWS_ICON}
+          <span>
+            Windows
+            <small>Coming soon</small>
+          </span>
+        </span>
+      </div>
       <p className="dl-meta">
+        {windowsVisitor ? "Windows support is coming soon — for now, SmoothCut is macOS only. " : ''}
         Free, no account. Built on{' '}
         <a href="https://github.com/AxmadjonTeacher/SmoothCut" target="_blank" rel="noreferrer">
           GitHub Releases

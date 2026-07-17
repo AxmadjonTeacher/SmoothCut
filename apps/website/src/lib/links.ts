@@ -7,6 +7,8 @@ const GITHUB_REPO = 'AxmadjonTeacher/SmoothCut';
  */
 export const DOWNLOAD_LINKS = {
   mac: `https://github.com/${GITHUB_REPO}/releases/latest/download/SmoothCut-mac-arm64.dmg`,
+  // Not linked from the UI yet — DownloadButtons shows Windows as "coming
+  // soon" until a real release asset exists at this URL.
   windows: `https://github.com/${GITHUB_REPO}/releases/latest/download/SmoothCut-win-x64-setup.exe`,
 };
 

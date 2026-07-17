@@ -32,11 +32,18 @@ fileAssociations:
     description: SmoothCut screen recording project
     role: Editor
     isPackage: true
-# Placeholder generic update feed; inert until a real server exists and the
-# app runs with SMOOTHCUT_UPDATE_URL set (see main/updater.ts + README).
+# GitHub Releases is both the download source and the auto-update feed —
+# electron-builder bakes this into app-update.yml at build time, and
+# electron-updater (main/updater.ts) reads it with no server of our own to
+# run. `electron-builder --publish always` (with a GH_TOKEN) creates/updates
+# the release and uploads the installers + latest-mac.yml + blockmaps.
+# NOTE: reliable auto-INSTALL on macOS needs the app code-signed (Squirrel.Mac
+# checks the signature matches) — unsigned, this can check/download but not
+# self-install; see the README "Auto-update" section and mac.identity below.
 publish:
-  provider: generic
-  url: https://updates.smoothcut.example/${os}/${arch}
+  provider: github
+  owner: AxmadjonTeacher
+  repo: SmoothCut
 mac:
   category: public.app-category.video
   icon: resources/icon.icns
