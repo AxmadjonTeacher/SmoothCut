@@ -115,15 +115,26 @@ async function openMic(config: NonNullable<RecordingConfig['mic']>): Promise<Med
   });
 }
 
-async function openSystemAudio(): Promise<MediaStream> {
+interface SystemAudioSource {
+  media: MediaStream;
+  /** The mandatory paired video track — stop only AFTER the audio recorder
+   *  has started (see startStreams), not here: it's the same underlying
+   *  ScreenCaptureKit-backed capture session as the audio track, and
+   *  stopping it first can tear the whole session down before
+   *  MediaRecorder.start() finishes initializing, failing with a generic
+   *  "There was an error starting the MediaRecorder." */
+  videoTrack: MediaStreamTrack;
+}
+
+async function openSystemAudio(): Promise<SystemAudioSource> {
   const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-  // Only the loopback audio matters — the mandatory video track is discarded.
-  for (const track of display.getVideoTracks()) track.stop();
   const audioTracks = display.getAudioTracks();
-  if (audioTracks.length === 0) {
+  const [videoTrack] = display.getVideoTracks();
+  if (audioTracks.length === 0 || !videoTrack) {
+    for (const track of display.getVideoTracks()) track.stop();
     throw new Error('system audio loopback unavailable on this platform');
   }
-  return new MediaStream(audioTracks);
+  return { media: new MediaStream(audioTracks), videoTrack };
 }
 
 async function startStreams(config: RecordingConfig, clockOffsetMs: number): Promise<ActiveStream[]> {
@@ -162,17 +173,24 @@ async function startStreams(config: RecordingConfig, clockOffsetMs: number): Pro
   }
   if (config.systemAudio) {
     starters.push(
-      openSystemAudio().then((media) =>
-        recordStream(
-          'system',
-          media,
-          {
-            mimeType: pickMimeType('audio/webm;codecs=opus', 'audio/webm'),
-            audioBitsPerSecond: AUDIO_BITS_PER_SEC,
-          },
-          clockOffsetMs,
-        ),
-      ),
+      openSystemAudio().then(({ media, videoTrack }) => {
+        try {
+          return recordStream(
+            'system',
+            media,
+            {
+              mimeType: pickMimeType('audio/webm;codecs=opus', 'audio/webm'),
+              audioBitsPerSecond: AUDIO_BITS_PER_SEC,
+            },
+            clockOffsetMs,
+          );
+        } finally {
+          // Safe now: MediaRecorder.start() above either threw (session torn
+          // down anyway) or returned, meaning the encoder is already
+          // initialized and no longer depends on the sibling video track.
+          videoTrack.stop();
+        }
+      }),
     );
   }
   const settled = await Promise.allSettled(starters);
