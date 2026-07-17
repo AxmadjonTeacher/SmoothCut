@@ -6,10 +6,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import { SceneRenderer, fitScreenRect, outputToSource } from '@smoothcut/engine';
+import { SceneRenderer, fitScreenRect, fitWebcamRect, outputToSource } from '@smoothcut/engine';
 import type { CursorTrack, Ripple, ZoomTrack } from '@smoothcut/engine';
 import type { BundleUrls, ProjectFile, RecordingMeta } from '@smoothcut/shared';
-import { editorStore, useEditor } from './store';
+import { cancelGesture, commitGesture, editorStore, updateGesture, useEditor } from './store';
 import { createCursorTextureManager } from './cursorTextures';
 import { clamp, resolveCanvasSize } from './util';
 import { WALLPAPER_URLS } from '../wallpapers';
@@ -238,7 +238,145 @@ export function PreviewCanvas({
     invalidate();
   }, [playing, playheadSec, timeline, videoRef, camRef, camOffsetSec, invalidate]);
 
+  // ------------------------------------------------------------- webcam drag
+
+  /** Grab offset from the pointer to the webcam center (view px) while dragging. */
+  const camDragRef = useRef<{ pointerId: number; dx: number; dy: number } | null>(null);
+
+  /** Pointer position in renderer view px (the canvas backing resolution). */
+  const toViewPx = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = e.currentTarget;
+    const b = canvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - b.left) / Math.max(1, b.width)) * canvas.width,
+      y: ((e.clientY - b.top) / Math.max(1, b.height)) * canvas.height,
+    };
+  }, []);
+
+  /**
+   * Webcam-center unit coords for a drag point (view px), clamped through the
+   * engine's own custom-layout fit so the card always stays fully on-canvas.
+   */
+  const dragPosition = useCallback((px: number, py: number): { x: number; y: number } | null => {
+    const canvas = canvasRef.current;
+    const current = editorStore.getState().project;
+    if (!canvas || !current || canvas.width < 1 || canvas.height < 1) return null;
+    const rect = fitWebcamRect(
+      canvas.width,
+      canvas.height,
+      'custom',
+      current.style.webcam.sizePct,
+      current.style.webcam.cornerStyle,
+      { x: px / canvas.width, y: py / canvas.height },
+    );
+    return {
+      x: (rect.x + rect.width / 2) / canvas.width,
+      y: (rect.y + rect.height / 2) / canvas.height,
+    };
+  }, []);
+
+  const overWebcam = useCallback((p: { x: number; y: number }): boolean => {
+    const cam = rendererRef.current?.getWebcamRectPx() ?? null;
+    return (
+      cam !== null &&
+      p.x >= cam.x &&
+      p.x <= cam.x + cam.width &&
+      p.y >= cam.y &&
+      p.y <= cam.y + cam.height
+    );
+  }, []);
+
+  const onCanvasPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (picking || e.button !== 0) return;
+      const renderer = rendererRef.current;
+      const canvas = canvasRef.current;
+      const current = editorStore.getState().project;
+      if (!renderer || !canvas || !current) return;
+      const cam = renderer.getWebcamRectPx();
+      const p = toViewPx(e);
+      if (!cam || !overWebcam(p)) return;
+      // Keep the grab offset so the card doesn't jump under the pointer; cap
+      // it to the custom-size card (grabbing the tall split card shrinks it).
+      const custom = fitWebcamRect(
+        canvas.width,
+        canvas.height,
+        'custom',
+        current.style.webcam.sizePct,
+        current.style.webcam.cornerStyle,
+      );
+      camDragRef.current = {
+        pointerId: e.pointerId,
+        dx: clamp(cam.x + cam.width / 2 - p.x, -custom.width / 2, custom.width / 2),
+        dy: clamp(cam.y + cam.height / 2 - p.y, -custom.height / 2, custom.height / 2),
+      };
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // No active pointer (synthetic events, pointer already lifted) —
+        // the drag still works for events delivered to the canvas itself.
+      }
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    },
+    [picking, toViewPx, overWebcam],
+  );
+
+  const onCanvasPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const drag = camDragRef.current;
+      if (!drag) {
+        if (!picking) canvas.style.cursor = overWebcam(toViewPx(e)) ? 'grab' : '';
+        return;
+      }
+      if (e.pointerId !== drag.pointerId) return;
+      const p = toViewPx(e);
+      const pos = dragPosition(p.x + drag.dx, p.y + drag.dy);
+      if (!pos) return;
+      updateGesture((d) => {
+        d.style.webcam.layout = 'custom';
+        d.style.webcam.position = pos;
+      });
+    },
+    [picking, toViewPx, overWebcam, dragPosition],
+  );
+
+  const onCanvasPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+      const drag = camDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      camDragRef.current = null;
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = 'grab';
+      const p = toViewPx(e);
+      const pos = dragPosition(p.x + drag.dx, p.y + drag.dy);
+      if (pos) {
+        // Single undo entry for the whole drag.
+        commitGesture((d) => {
+          d.style.webcam.layout = 'custom';
+          d.style.webcam.position = pos;
+        });
+      } else {
+        cancelGesture();
+      }
+    },
+    [toViewPx, dragPosition],
+  );
+
+  const onCanvasPointerCancel = useCallback((e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const drag = camDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    camDragRef.current = null;
+    if (canvasRef.current) canvasRef.current.style.cursor = '';
+    cancelGesture();
+  }, []);
+
   // ----------------------------------------------------------------- picking
+
+  const webcamStyle = project.style.webcam;
+  const splitActive = webcamStyle.layout === 'split-right' && !webcamStyle.hidden && urls.camera !== undefined;
 
   const handlePick = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -251,12 +389,13 @@ export function PreviewCanvas({
         meta.capture.widthPx,
         meta.capture.heightPx,
         project.style.screen.paddingPct,
+        splitActive ? 'split-right' : undefined,
       );
       const x = clamp((e.clientX - rect.left - screen.x) / screen.width, 0, 1);
       const y = clamp((e.clientY - rect.top - screen.y) / screen.height, 0, 1);
       onPickTarget(x, y);
     },
-    [meta, project.style.screen.paddingPct, onPickTarget],
+    [meta, project.style.screen.paddingPct, splitActive, onPickTarget],
   );
 
   const canvasStyle = useMemo(
@@ -267,7 +406,15 @@ export function PreviewCanvas({
   return (
     <div className="preview-panel" ref={containerRef}>
       <div className={picking ? 'preview-stage picking' : 'preview-stage'}>
-        <canvas ref={canvasRef} className="preview-canvas" style={canvasStyle} />
+        <canvas
+          ref={canvasRef}
+          className="preview-canvas"
+          style={canvasStyle}
+          onPointerDown={onCanvasPointerDown}
+          onPointerMove={onCanvasPointerMove}
+          onPointerUp={onCanvasPointerUp}
+          onPointerCancel={onCanvasPointerCancel}
+        />
         {picking ? (
           <div className="preview-pick-overlay" style={canvasStyle} onPointerDown={handlePick} />
         ) : null}

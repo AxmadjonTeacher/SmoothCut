@@ -34,6 +34,18 @@
  *   SMOOTHCUT_DEV_FAKE_PICK_DIR=<dir>
  *                                  'export:pickDirectory' returns <dir> without
  *                                  opening a dialog (headless round-trips).
+ *   SMOOTHCUT_DEV_RECORDER=1       with RECORD_SEC: open the recorder toolbar
+ *                                  through the real show/hide wiring before
+ *                                  recording, and log per-window visibility
+ *                                  ("[devharness] windows <label> …") before,
+ *                                  during, and after the recording.
+ *   SMOOTHCUT_DEV_CANCEL=1         with RECORD_SEC: cancel instead of stop
+ *                                  (no project is written).
+ *   SMOOTHCUT_DEV_EDITOR_ON_FINALIZE=1
+ *                                  let a finalized harness recording open the
+ *                                  editor window like a normal run would.
+ *   SMOOTHCUT_DEV_HOTKEY_PROBE=1   log every global-shortcut registration
+ *                                  attempt (accelerator, active, isRegistered).
  *
  *   RECORD_SEC + SMOOTHCUT_DEV_SHOT without a countdown screenshots every open
  *   window mid-recording (<png>, then <png base>-w<n>.png) — bubble/pill checks.
@@ -57,6 +69,9 @@ const DEV_MIC = process.env.SMOOTHCUT_DEV_MIC === '1';
 const DEV_WEBCAM = process.env.SMOOTHCUT_DEV_WEBCAM === '1';
 const DEV_AREA = process.env.SMOOTHCUT_DEV_AREA;
 const DEV_COUNTDOWN = process.env.SMOOTHCUT_DEV_COUNTDOWN;
+const DEV_RECORDER = process.env.SMOOTHCUT_DEV_RECORDER === '1';
+const DEV_CANCEL = process.env.SMOOTHCUT_DEV_CANCEL === '1';
+const DEV_EDITOR_ON_FINALIZE = process.env.SMOOTHCUT_DEV_EDITOR_ON_FINALIZE === '1';
 
 function parseCountdownSec(raw: string | undefined): 0 | 3 | 5 | 10 {
   return raw === '3' ? 3 : raw === '5' ? 5 : raw === '10' ? 10 : 0;
@@ -64,6 +79,11 @@ function parseCountdownSec(raw: string | undefined): 0 | 3 | 5 | 10 {
 
 export function devHarnessActive(): boolean {
   return Boolean(RECORD_SEC || OPEN_ID || PANEL_SHOT_PATH);
+}
+
+/** Harness recordings normally suppress the editor; this flag re-enables it. */
+export function devEditorOnFinalize(): boolean {
+  return DEV_EDITOR_ON_FINALIZE;
 }
 
 /** "x,y,w,h" (physical px) → Rect, or null when malformed. */
@@ -86,7 +106,45 @@ async function screenshot(win: BrowserWindow, path: string): Promise<void> {
   log(`shot ${path}`);
 }
 
-export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id: string) => string): void {
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+async function waitFor(cond: () => boolean, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (cond()) return true;
+    await sleep(100);
+  }
+  return cond();
+}
+
+/** Window kind from its renderer URL's ?view= (the recorder loads without one). */
+function windowView(win: BrowserWindow): string {
+  try {
+    const view = new URL(win.webContents.getURL()).searchParams.get('view');
+    return view ?? 'recorder';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** "[devharness] windows <label> recorder:hidden editor:visible …" probe line. */
+function logWindows(label: string): void {
+  const parts = BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed())
+    .map((w) => `${windowView(w)}:${w.isVisible() ? 'visible' : 'hidden'}`);
+  log(`windows ${label} ${parts.length > 0 ? parts.join(' ') : 'none'}`);
+}
+
+export interface DevHarnessHooks {
+  /** Open the recorder toolbar through the app's real show/hide wiring. */
+  openRecorder: () => void;
+}
+
+export function maybeStartDevHarness(
+  session: RecordingSession,
+  bundleDirOf: (id: string) => string,
+  hooks: DevHarnessHooks,
+): void {
   // Surface every window's console (incl. the hidden capture window).
   if (process.env.SMOOTHCUT_DEV_VERBOSE === '1') {
     app.on('browser-window-created', (_evt, win) => {
@@ -147,6 +205,16 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
     const seconds = Number(RECORD_SEC);
     void (async () => {
       try {
+        if (DEV_RECORDER) {
+          // Toolbar-flow probe: open the recorder toolbar first so the
+          // hide-while-recording / restore-on-cancel wiring is exercised.
+          hooks.openRecorder();
+          await waitFor(
+            () => BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible()),
+            8000,
+          );
+          logWindows('pre-record');
+        }
         await new Promise((r) => setTimeout(r, 1500));
         const { displays } = await listSources();
         const primary = displays.find((d) => d.isPrimary) ?? displays[0];
@@ -189,9 +257,32 @@ export function maybeStartDevHarness(session: RecordingSession, bundleDirOf: (id
             })();
           }, Math.max(500, (seconds * 1000) / 2));
         }
+        if (DEV_RECORDER) logWindows('recording');
         await new Promise((r) => setTimeout(r, seconds * 1000));
-        await session.stop();
-        log(`finalized ${projectId} ${bundleDirOf(projectId)}`);
+        if (DEV_CANCEL) {
+          await session.cancel();
+          log(`cancelled ${projectId}`);
+          if (DEV_RECORDER) {
+            // Restore-on-cancel is synchronous with the status push, but give
+            // the window server a beat before probing.
+            await sleep(1000);
+            logWindows('after-cancel');
+          }
+        } else {
+          await session.stop();
+          log(`finalized ${projectId} ${bundleDirOf(projectId)}`);
+          if (DEV_RECORDER) {
+            // Let the editor window (if DEV_EDITOR_ON_FINALIZE) reach ready-to-show.
+            await waitFor(
+              () =>
+                BrowserWindow.getAllWindows().some(
+                  (w) => !w.isDestroyed() && windowView(w) === 'editor' && w.isVisible(),
+                ),
+              DEV_EDITOR_ON_FINALIZE ? 15_000 : 1,
+            );
+            logWindows('after-finalize');
+          }
+        }
       } catch (error) {
         log(`record-error ${error instanceof Error ? error.message : String(error)}`);
         process.exitCode = 1;

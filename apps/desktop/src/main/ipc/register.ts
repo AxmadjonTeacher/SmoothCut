@@ -45,7 +45,13 @@ export interface IpcDeps {
   exports: ExportFileSink;
   settings: SettingsStore;
   openEditor: (projectId: string) => void;
-  onSettingsChanged?: (settings: AppSettings) => void;
+  /**
+   * Runs after every settings:set. May return CORRECTED settings (e.g. a
+   * hotkey that failed to register gets reverted) — that corrected value
+   * becomes the settings:set result, so the renderer can detect the failure
+   * by comparing it with what it sent.
+   */
+  onSettingsChanged?: (settings: AppSettings) => AppSettings | undefined;
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -111,8 +117,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle('settings:get', () => deps.settings.get());
   handle('settings:set', (patch) => {
     const next = deps.settings.set(patch);
-    deps.onSettingsChanged?.(next);
-    return next;
+    return deps.onSettingsChanged?.(next) ?? next;
   });
 
   // Hidden capture window (webcam/mic/system audio) → session.

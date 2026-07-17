@@ -419,6 +419,37 @@
 .layout-pinned-left { top: 50%; left: 7px; transform: translateY(-50%); }
 .layout-pinned-right { top: 50%; right: 7px; transform: translateY(-50%); }
 
+/* Split-view icon: screen card left, tall camera column right. */
+.layout-split-screen {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 7px;
+  right: 22px;
+  border-radius: 3px;
+  background: var(--text-dim);
+  opacity: 0.55;
+}
+
+.layout-split-cam {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: 7px;
+  width: 11px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.layout-cell.active .layout-split-screen {
+  opacity: 0.85;
+}
+
+.row-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .link-btn {
   background: none;
   border: none;

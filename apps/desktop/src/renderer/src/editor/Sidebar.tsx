@@ -413,7 +413,21 @@ export function Sidebar({ project, meta, hasCamera, tuning, onTuning }: SidebarP
                   <span className={`layout-dot layout-${value}`} />
                 </button>
               ))}
+              <button
+                type="button"
+                title="Split view — screen left, camera right"
+                className={style.webcam.layout === 'split-right' ? 'layout-cell active' : 'layout-cell'}
+                onClick={() =>
+                  applyCommand((d) => {
+                    d.style.webcam.layout = 'split-right';
+                  })
+                }
+              >
+                <span className="layout-split-screen" />
+                <span className="layout-split-cam" />
+              </button>
             </div>
+            <p className="sb-note">Drag the camera in the preview to place it freely.</p>
             <SliderRow
               label="Size"
               min={0.1}
@@ -425,7 +439,16 @@ export function Sidebar({ project, meta, hasCamera, tuning, onTuning }: SidebarP
                 d.style.webcam.sizePct = v;
               })}
             />
-            <div className="control-row">
+            <div
+              className={
+                style.webcam.layout === 'split-right' ? 'control-row row-disabled' : 'control-row'
+              }
+              title={
+                style.webcam.layout === 'split-right'
+                  ? 'Split view always uses a rounded rectangle'
+                  : undefined
+              }
+            >
               <span className="control-label">Shape</span>
               <Segmented
                 options={[
@@ -441,6 +464,15 @@ export function Sidebar({ project, meta, hasCamera, tuning, onTuning }: SidebarP
                 }
               />
             </div>
+            <ToggleRow
+              label="Flip camera"
+              checked={style.webcam.mirror === true}
+              onChange={(checked) =>
+                applyCommand((d) => {
+                  d.style.webcam.mirror = checked;
+                })
+              }
+            />
             <ToggleRow
               label="Hidden"
               checked={style.webcam.hidden}

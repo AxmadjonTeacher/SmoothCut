@@ -86,6 +86,10 @@ export const webcamLayoutSchema = z.enum([
   'bubble-tr',
   'pinned-left',
   'pinned-right',
+  /** Free placement: centered on `webcam.position` (drag in the preview). */
+  'custom',
+  /** Split view: screen card left, tall webcam column right. */
+  'split-right',
 ]);
 export type WebcamLayout = z.infer<typeof webcamLayoutSchema>;
 
@@ -109,6 +113,10 @@ export const projectStyleSchema = z.object({
     cornerStyle: z.enum(['squircle', 'circle', 'rect']),
     shadow: shadowStyleSchema,
     hidden: z.boolean(),
+    /** Webcam CENTER in canvas unit coords (0..1); used when layout==='custom'. */
+    position: z.object({ x: z.number(), y: z.number() }).optional(),
+    /** Flip the webcam video horizontally (undefined = false). */
+    mirror: z.boolean().optional(),
   }),
 });
 export type ProjectStyle = z.infer<typeof projectStyleSchema>;

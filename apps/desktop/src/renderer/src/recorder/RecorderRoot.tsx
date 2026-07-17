@@ -7,6 +7,7 @@
  * resizing the window. Everything outside the drawn UI is pointer-events:none.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_APP_SETTINGS } from '@smoothcut/shared';
 import type {
   CaptureSource,
   DisplayInfo,
@@ -19,13 +20,20 @@ import type {
 import { PermissionsGate } from './PermissionsGate';
 import { Segmented } from './controls';
 import { RecentList } from './RecentList';
-import { cleanIpcError, formatDuration, formatHotkey } from './format';
+import {
+  cleanIpcError,
+  formatDuration,
+  formatHotkey,
+  hotkeyParts,
+  keyboardEventToAccelerator,
+} from './format';
 import {
   AreaIcon,
   CameraIcon,
   DisplayIcon,
   GearIcon,
   MicIcon,
+  ResetIcon,
   SpeakerIcon,
   WindowIcon,
   XIcon,
@@ -132,7 +140,10 @@ export default function RecorderRoot() {
   const [status, setStatus] = useState<RecordingStatus>({ state: 'idle', elapsedMs: 0 });
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [hotkeyLabel, setHotkeyLabel] = useState<string | null>(null);
+  /** Active start/stop accelerator (Electron syntax), mirrored from settings. */
+  const [hotkey, setHotkey] = useState<string>(DEFAULT_APP_SETTINGS.hotkeyToggleRecording);
+  const [hotkeyCapture, setHotkeyCapture] = useState(false);
+  const [hotkeyError, setHotkeyError] = useState<string | null>(null);
   const [recentKey, setRecentKey] = useState(0);
   const [pickingArea, setPickingArea] = useState(false);
 
@@ -226,7 +237,7 @@ export default function RecorderRoot() {
         setSources(srcs);
         setStatus(current);
         setDevices(media);
-        setHotkeyLabel(formatHotkey(settings.hotkeyToggleRecording, sc.platform));
+        setHotkey(settings.hotkeyToggleRecording);
         setAutoZoom(settings.autoZoomEnabled);
 
         const cfg = settings.lastRecordingConfig;
@@ -401,6 +412,56 @@ export default function RecorderRoot() {
     setMicOn(true);
   }, [micOn, devices, micDeviceId, refreshDevices]);
 
+  // ------------------------------------------------------------------- hotkey
+
+  /**
+   * Persist a new start/stop accelerator. Main tries to register it as the
+   * global shortcut inside the settings:set handler; a failed registration
+   * (invalid/taken) REVERTS the stored setting, so the returned settings not
+   * matching what we sent is the failure signal.
+   */
+  const applyHotkey = useCallback(async (accelerator: string) => {
+    setHotkeyError(null);
+    try {
+      const next = await sc.invoke('settings:set', { hotkeyToggleRecording: accelerator });
+      setHotkey(next.hotkeyToggleRecording);
+      if (next.hotkeyToggleRecording !== accelerator) {
+        setHotkeyError('That shortcut can’t be registered — it may be in use by another app.');
+      }
+    } catch (err) {
+      setHotkeyError(cleanIpcError(err instanceof Error ? err.message : String(err)));
+    }
+  }, []);
+
+  // Closing the gear panel abandons an in-progress hotkey capture.
+  useEffect(() => {
+    if (!gearOpen) setHotkeyCapture(false);
+  }, [gearOpen]);
+
+  // Capture mode: the next modifier+key keydown becomes the hotkey; Esc cancels.
+  useEffect(() => {
+    if (!hotkeyCapture) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        setHotkeyCapture(false);
+        return;
+      }
+      const accelerator = keyboardEventToAccelerator(e, sc.platform);
+      if (accelerator === null) return; // bare modifier / unsupported key — keep listening
+      setHotkeyCapture(false);
+      void applyHotkey(accelerator);
+    };
+    const cancel = () => setHotkeyCapture(false);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', cancel);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', cancel);
+    };
+  }, [hotkeyCapture, applyHotkey]);
+
   // ---------------------------------------------------------------- recording
 
   const buildConfig = useCallback((): RecordingConfig | null => {
@@ -557,7 +618,9 @@ export default function RecorderRoot() {
           <>
             <div className="pill-title">
               What to record?
-              {hotkeyLabel ? <span className="pill-hotkey">{hotkeyLabel}</span> : null}
+              <span className="pill-hotkey" title="Start/stop recording shortcut">
+                {formatHotkey(hotkey, sc.platform)}
+              </span>
             </div>
             <div className="pill-row">
               <button
@@ -852,6 +915,52 @@ export default function RecorderRoot() {
                   }}
                 />
               </label>
+              <div className="settings-field">
+                <span className="settings-label">Hotkey</span>
+                <div className="hotkey-row">
+                  <span className="hotkey-name">Start/stop recording</span>
+                  <div className="hotkey-controls">
+                    <button
+                      type="button"
+                      className={hotkeyCapture ? 'hotkey-btn capturing' : 'hotkey-btn'}
+                      aria-label="Change the start/stop recording shortcut"
+                      title={hotkeyCapture ? 'Press the new shortcut (Esc cancels)' : 'Click, then press the new shortcut'}
+                      onClick={() => {
+                        setHotkeyError(null);
+                        setHotkeyCapture((v) => !v);
+                      }}
+                    >
+                      {hotkeyCapture ? (
+                        <span className="hotkey-hint">Press keys…</span>
+                      ) : (
+                        hotkeyParts(hotkey, sc.platform).map((part, i) => (
+                          <kbd key={i} className="keycap">
+                            {part}
+                          </kbd>
+                        ))
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="hotkey-reset"
+                      aria-label="Reset shortcut to default"
+                      title={`Reset to ${formatHotkey(DEFAULT_APP_SETTINGS.hotkeyToggleRecording, sc.platform)}`}
+                      disabled={!hotkeyCapture && hotkey === DEFAULT_APP_SETTINGS.hotkeyToggleRecording}
+                      onClick={() => {
+                        setHotkeyCapture(false);
+                        void applyHotkey(DEFAULT_APP_SETTINGS.hotkeyToggleRecording);
+                      }}
+                    >
+                      <ResetIcon />
+                    </button>
+                  </div>
+                </div>
+                {hotkeyError !== null ? (
+                  <div className="hotkey-error" role="alert">
+                    {hotkeyError}
+                  </div>
+                ) : null}
+              </div>
               <RecentList refreshKey={recentKey} />
             </div>
           </div>

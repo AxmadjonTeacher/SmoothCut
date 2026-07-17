@@ -126,6 +126,26 @@ export function WarnIcon() {
   );
 }
 
+/** Small counter-clockwise reset arrow (hotkey reset-to-default). */
+export function ResetIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1.75 7a5.25 5.25 0 1 0 5.25-5.25 5.69 5.69 0 0 0-3.93 1.6L1.75 4.67" />
+      <path d="M1.75 1.75v2.92h2.92" />
+    </svg>
+  );
+}
+
 export function FolderIcon() {
   return (
     <svg

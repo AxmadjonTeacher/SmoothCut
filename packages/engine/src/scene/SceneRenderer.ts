@@ -10,7 +10,7 @@ import { BakedTexture } from './bakedTexture.js';
 import { CursorNode } from './CursorNode.js';
 import { RippleLayer } from './RippleLayer.js';
 import { FrameTexture } from './frameTexture.js';
-import { fitScreenRect, fitWebcamRect } from './layout.js';
+import { SPLIT_WEBCAM_RADIUS_PCT, fitScreenRect, fitWebcamRect } from './layout.js';
 import type { RectPx } from './layout.js';
 import { bakeMask, bakeShadow, circlePath, roundedRectPath, squirclePath } from './canvas2d.js';
 import {
@@ -82,6 +82,8 @@ export class SceneRenderer {
   private viewH: number;
   private screenRect: RectPx = { x: 0, y: 0, width: 1, height: 1 };
   private webcamRect: RectPx = { x: 0, y: 0, width: 1, height: 1 };
+  /** Whether renderFrame is being fed webcam frames (split view collapses without them). */
+  private webcamHasSource = false;
 
   static async create(opts: {
     canvas: HTMLCanvasElement | OffscreenCanvas;
@@ -186,6 +188,13 @@ export class SceneRenderer {
     const project = this.project;
     const meta = this.meta;
     if (project && meta) {
+      // The split layout reserves screen space only while webcam frames
+      // actually arrive; relayout when that changes (first frame, source loss).
+      const hasSource = sources.webcam != null;
+      if (hasSource !== this.webcamHasSource) {
+        this.webcamHasSource = hasSource;
+        if (project.style.webcam.layout === 'split-right') this.relayout();
+      }
       const rect = this.screenRect;
 
       const screenTexture = this.screenFrame.update(sources.screen);
@@ -263,7 +272,16 @@ export class SceneRenderer {
 
     this.background.apply(style.background, w, h);
 
-    const rect = fitScreenRect(w, h, meta.capture.widthPx, meta.capture.heightPx, style.screen.paddingPct);
+    const splitActive =
+      style.webcam.layout === 'split-right' && !style.webcam.hidden && this.webcamHasSource;
+    const rect = fitScreenRect(
+      w,
+      h,
+      meta.capture.widthPx,
+      meta.capture.heightPx,
+      style.screen.paddingPct,
+      splitActive ? 'split-right' : undefined,
+    );
     this.screenRect = rect;
     const radiusPx = style.screen.cornerRadius * styleScale;
 
@@ -296,14 +314,24 @@ export class SceneRenderer {
     }
 
     const camStyle = style.webcam.cornerStyle;
-    const cam = fitWebcamRect(w, h, style.webcam.layout, style.webcam.sizePct, camStyle);
+    const cam = fitWebcamRect(
+      w,
+      h,
+      style.webcam.layout,
+      style.webcam.sizePct,
+      camStyle,
+      style.webcam.position,
+    );
     this.webcamRect = cam;
+    // Split view ignores the shape control: always a generous rounded rect.
     const camPath =
-      camStyle === 'squircle'
-        ? squirclePath()
-        : camStyle === 'rect'
-          ? roundedRectPath(cam.width * 0.12)
-          : circlePath();
+      style.webcam.layout === 'split-right'
+        ? roundedRectPath(cam.width * SPLIT_WEBCAM_RADIUS_PCT)
+        : camStyle === 'squircle'
+          ? squirclePath()
+          : camStyle === 'rect'
+            ? roundedRectPath(cam.width * 0.12)
+            : circlePath();
 
     this.webcamContainer.position.set(cam.x, cam.y);
     this.webcamMask.texture = this.webcamMaskBake.set(bakeMask(cam.width, cam.height, camPath));
@@ -391,6 +419,15 @@ export class SceneRenderer {
 
   // --------------------------------------------------------------- webcam
 
+  /**
+   * The currently laid-out webcam rect in view px (renderer resolution), or
+   * null while the webcam is hidden / has no source (drag hit-testing).
+   */
+  getWebcamRectPx(): RectPx | null {
+    if (!this.webcamGroup.visible) return null;
+    return { ...this.webcamRect };
+  }
+
   private coverFitWebcam(texture: Texture): void {
     const cam = this.webcamRect;
     const srcW = Math.max(1, texture.source.pixelWidth);
@@ -401,7 +438,14 @@ export class SceneRenderer {
     this.webcamSprite.texture = texture;
     this.webcamSprite.width = w;
     this.webcamSprite.height = h;
-    this.webcamSprite.position.set((cam.width - w) / 2, (cam.height - h) / 2);
+    // Mirror: negative x-scale flips the video; with the default (0,0) anchor
+    // the sprite then extends leftward, so anchor its x at the right edge.
+    // pixi's width setter preserves the scale sign, so re-assert it each frame.
+    const mirror = this.project?.style.webcam.mirror === true;
+    const sx = Math.abs(this.webcamSprite.scale.x);
+    this.webcamSprite.scale.x = mirror ? -sx : sx;
+    const offX = (cam.width - w) / 2;
+    this.webcamSprite.position.set(mirror ? offX + w : offX, (cam.height - h) / 2);
   }
 
 }

@@ -1,7 +1,8 @@
 import { app, desktopCapturer, globalShortcut, screen, session as electronSession, BrowserWindow, Menu } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
+import { DEFAULT_APP_SETTINGS } from '@smoothcut/shared';
 import type { RecordingStatus } from '@smoothcut/shared';
-import { devHarnessActive, maybeStartDevHarness } from './devHarness.js';
+import { devEditorOnFinalize, devHarnessActive, maybeStartDevHarness } from './devHarness.js';
 import { registerSmoothcutProtocol, registerSmoothcutSchemeAsPrivileged } from './project/protocol.js';
 import { ProjectStore } from './project/store.js';
 import { RecordingSession } from './recording/session.js';
@@ -37,20 +38,29 @@ if (!app.requestSingleInstanceLock()) {
     }
   };
 
-  /** Recorder panel gets out of the shot while recording, comes back on stop. */
+  /**
+   * Recorder panel gets out of the shot while recording. It only comes BACK
+   * on cancel or failure (the user is mid-flow and needs the toolbar); a
+   * finalized recording hands off to the editor, so the toolbar stays hidden
+   * — still reachable via tray, hotkey, or dock click. 'stopping' keeps it
+   * hidden until the outcome is known.
+   */
   const onRecordingStatus = (status: RecordingStatus): void => {
     tray?.onStatus(status);
     if (status.state === prevRecordingState) return;
-    const prev = prevRecordingState;
     prevRecordingState = status.state;
     if (status.state === 'recording') {
       if (recorderWindow && !recorderWindow.isDestroyed() && recorderWindow.isVisible()) {
         recorderWindow.hide();
         recorderHiddenForRecording = true;
       }
-    } else if (prev === 'recording' && recorderHiddenForRecording) {
-      recorderHiddenForRecording = false;
-      if (recorderWindow && !recorderWindow.isDestroyed()) recorderWindow.show();
+    } else if (recorderHiddenForRecording) {
+      if (status.state === 'finalized') {
+        recorderHiddenForRecording = false;
+      } else if (status.state === 'idle' || status.state === 'failed') {
+        recorderHiddenForRecording = false;
+        if (recorderWindow && !recorderWindow.isDestroyed()) recorderWindow.show();
+      }
     }
     if (status.state === 'finalized') tray?.refresh();
   };
@@ -62,7 +72,7 @@ if (!app.requestSingleInstanceLock()) {
       broadcast('recording:status', status);
     },
     onFinalized: (projectId) => {
-      if (!devHarnessActive()) createEditorWindow(projectId);
+      if (!devHarnessActive() || devEditorOnFinalize()) createEditorWindow(projectId);
       broadcast('project:opened', { projectId });
     },
   });
@@ -82,18 +92,33 @@ if (!app.requestSingleInstanceLock()) {
   };
 
   let registeredHotkey: string | undefined;
-  const registerHotkey = (accelerator: string): void => {
-    if (registeredHotkey === accelerator) return;
-    if (registeredHotkey !== undefined) globalShortcut.unregister(registeredHotkey);
-    registeredHotkey = undefined;
-    try {
-      const ok = globalShortcut.register(accelerator, () =>
-        broadcast('hotkey:toggleRecording', undefined),
-      );
-      if (ok) registeredHotkey = accelerator;
-    } catch {
-      // A malformed accelerator in settings must not crash startup.
+  /** (Re-)register the global start/stop shortcut. True iff it is now active. */
+  const registerHotkey = (accelerator: string): boolean => {
+    if (registeredHotkey !== accelerator) {
+      if (registeredHotkey !== undefined) globalShortcut.unregister(registeredHotkey);
+      registeredHotkey = undefined;
+      try {
+        const ok = globalShortcut.register(accelerator, () =>
+          broadcast('hotkey:toggleRecording', undefined),
+        );
+        if (ok) registeredHotkey = accelerator;
+      } catch {
+        // A malformed accelerator in settings must not crash startup.
+      }
     }
+    const active = registeredHotkey === accelerator;
+    if (process.env.SMOOTHCUT_DEV_HOTKEY_PROBE === '1') {
+      let system = false;
+      try {
+        system = globalShortcut.isRegistered(accelerator);
+      } catch {
+        // isRegistered throws on malformed accelerators — report false.
+      }
+      process.stdout.write(
+        `[devharness] hotkey ${accelerator} active=${String(active)} isRegistered=${String(system)}\n`,
+      );
+    }
+    return active;
   };
 
   app.on('second-instance', showRecorderWindow);
@@ -127,7 +152,17 @@ if (!app.requestSingleInstanceLock()) {
       openEditor: (projectId) => {
         createEditorWindow(projectId);
       },
-      onSettingsChanged: (next) => registerHotkey(next.hotkeyToggleRecording),
+      onSettingsChanged: (next) => {
+        const prev = registeredHotkey;
+        if (registerHotkey(next.hotkeyToggleRecording)) return undefined;
+        // Registration failed (invalid, or taken by another app): re-register
+        // the last working shortcut and REVERT the stored setting, so the
+        // returned settings tell the renderer the new hotkey didn't stick.
+        const fallback = prev ?? DEFAULT_APP_SETTINGS.hotkeyToggleRecording;
+        if (next.hotkeyToggleRecording === fallback) return undefined;
+        registerHotkey(fallback);
+        return settings.set({ hotkeyToggleRecording: fallback });
+      },
     });
     registerHotkey(settings.get().hotkeyToggleRecording);
     initUpdater();
@@ -142,7 +177,9 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
     if (devHarnessActive()) {
-      maybeStartDevHarness(session, (id) => projects.bundleDir(id));
+      maybeStartDevHarness(session, (id) => projects.bundleDir(id), {
+        openRecorder: showRecorderWindow,
+      });
     } else {
       tray = new AppTray({
         projects,
@@ -155,7 +192,13 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) showRecorderWindow();
+      // Dock click: reopen the toolbar when nothing is on screen. The recorder
+      // window may still EXIST hidden (kept out of the way after a finished
+      // recording), so count only visible windows.
+      const anyVisible = BrowserWindow.getAllWindows().some(
+        (w) => !w.isDestroyed() && w.isVisible(),
+      );
+      if (!anyVisible) showRecorderWindow();
     });
   });
 
