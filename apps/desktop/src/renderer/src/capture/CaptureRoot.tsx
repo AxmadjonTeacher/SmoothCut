@@ -7,8 +7,10 @@
  * monotonic clock via an offset measured over 'clock:now' round trips
  * (midpoint of the best-of-N RTT) and reported with 'capture:streamStarted'.
  * System audio arrives through getDisplayMedia — main's
- * setDisplayMediaRequestHandler answers with a screen source (whose video
- * track is discarded immediately) plus the OS loopback audio device.
+ * setDisplayMediaRequestHandler answers with a screen source plus the OS
+ * loopback audio device; the audio is re-routed through WebAudio before it
+ * reaches MediaRecorder (see openSystemAudio) and the display tracks are
+ * kept alive until the recording stops.
  */
 import { useEffect } from 'react';
 import type { CaptureCommand, CaptureStreamKind, RecordingConfig } from '@smoothcut/shared';
@@ -57,6 +59,8 @@ interface ActiveStream {
   stopped: Promise<void>;
   /** Resolves when every chunk produced so far has been written by main. */
   flush: () => Promise<void>;
+  /** Releases source-side resources (display-capture tracks, AudioContext). */
+  cleanup?: () => void;
 }
 
 function recordStream(
@@ -117,24 +121,47 @@ async function openMic(config: NonNullable<RecordingConfig['mic']>): Promise<Med
 
 interface SystemAudioSource {
   media: MediaStream;
-  /** The mandatory paired video track — stop only AFTER the audio recorder
-   *  has started (see startStreams), not here: it's the same underlying
-   *  ScreenCaptureKit-backed capture session as the audio track, and
-   *  stopping it first can tear the whole session down before
-   *  MediaRecorder.start() finishes initializing, failing with a generic
-   *  "There was an error starting the MediaRecorder." */
-  videoTrack: MediaStreamTrack;
+  /** Stops the display-capture tracks and closes the bridge AudioContext. */
+  cleanup: () => void;
 }
 
+/**
+ * MediaRecorder must never record the loopback track directly: it is backed
+ * by the same ScreenCaptureKit capture session as the mandatory paired video
+ * track, and MediaRecorder.start() on such a track can fail with a generic
+ * "There was an error starting the MediaRecorder." Bridging through WebAudio
+ * (source → MediaStreamAudioDestinationNode) hands the recorder an ordinary
+ * WebAudio-backed track with no display-capture dependency. Both display
+ * tracks stay alive until cleanup — stopping either can tear down the shared
+ * capture session and silence the loopback audio.
+ */
 async function openSystemAudio(): Promise<SystemAudioSource> {
   const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
   const audioTracks = display.getAudioTracks();
-  const [videoTrack] = display.getVideoTracks();
-  if (audioTracks.length === 0 || !videoTrack) {
-    for (const track of display.getVideoTracks()) track.stop();
+  if (audioTracks.length === 0) {
+    for (const track of display.getTracks()) track.stop();
     throw new Error('system audio loopback unavailable on this platform');
   }
-  return { media: new MediaStream(audioTracks), videoTrack };
+  // Chromium only pumps samples from a capture-backed track into WebAudio
+  // while the track is also attached to a media element — without this the
+  // bridge records digital silence (verified via the dev harness).
+  const keepAlive = new Audio();
+  keepAlive.muted = true;
+  keepAlive.srcObject = display;
+  await keepAlive.play().catch(() => {});
+  const ctx = new AudioContext();
+  const dest = ctx.createMediaStreamDestination();
+  ctx.createMediaStreamSource(new MediaStream(audioTracks)).connect(dest);
+  await ctx.resume().catch(() => {});
+  return {
+    media: dest.stream,
+    cleanup: () => {
+      keepAlive.pause();
+      keepAlive.srcObject = null;
+      for (const track of display.getTracks()) track.stop();
+      void ctx.close().catch(() => {});
+    },
+  };
 }
 
 async function startStreams(config: RecordingConfig, clockOffsetMs: number): Promise<ActiveStream[]> {
@@ -173,9 +200,9 @@ async function startStreams(config: RecordingConfig, clockOffsetMs: number): Pro
   }
   if (config.systemAudio) {
     starters.push(
-      openSystemAudio().then(({ media, videoTrack }) => {
+      openSystemAudio().then(({ media, cleanup }) => {
         try {
-          return recordStream(
+          const stream = recordStream(
             'system',
             media,
             {
@@ -184,26 +211,35 @@ async function startStreams(config: RecordingConfig, clockOffsetMs: number): Pro
             },
             clockOffsetMs,
           );
-        } finally {
-          // Safe now: MediaRecorder.start() above either threw (session torn
-          // down anyway) or returned, meaning the encoder is already
-          // initialized and no longer depends on the sibling video track.
-          videoTrack.stop();
+          stream.cleanup = cleanup;
+          return stream;
+        } catch (err) {
+          cleanup();
+          throw err;
         }
       }),
     );
   }
+  const kinds: CaptureStreamKind[] = [
+    ...(config.webcam ? (['camera'] as const) : []),
+    ...(config.mic ? (['mic'] as const) : []),
+    ...(config.systemAudio ? (['system'] as const) : []),
+  ];
   const settled = await Promise.allSettled(starters);
   const active: ActiveStream[] = [];
   const failures: string[] = [];
-  for (const result of settled) {
+  for (const [i, result] of settled.entries()) {
     if (result.status === 'fulfilled') active.push(result.value);
-    else failures.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+    else {
+      const reason =
+        result.reason instanceof Error ? result.reason.message : String(result.reason);
+      failures.push(`${kinds[i] ?? 'stream'}: ${reason}`);
+    }
   }
   if (failures.length > 0) {
     // All-or-nothing: a partially-started session should fail loudly rather
     // than silently drop a stream the user asked for.
-    stopStreams(active);
+    disposeStreams(active);
     throw new Error(failures.join('; '));
   }
   return active;
@@ -219,6 +255,15 @@ function stopStreams(active: ActiveStream[]): void {
   }
 }
 
+/** Immediate teardown (failure/abort paths): recorders, tracks, sources. */
+function disposeStreams(active: ActiveStream[]): void {
+  stopStreams(active);
+  for (const stream of active) {
+    for (const track of stream.tracks) track.stop();
+    stream.cleanup?.();
+  }
+}
+
 async function stopAndFlush(active: ActiveStream[]): Promise<void> {
   stopStreams(active);
   // dataavailable (final chunk) fires before stop, so awaiting stopped then
@@ -226,6 +271,7 @@ async function stopAndFlush(active: ActiveStream[]): Promise<void> {
   await Promise.all(active.map((s) => s.stopped));
   for (const stream of active) {
     for (const track of stream.tracks) track.stop();
+    stream.cleanup?.();
   }
   await Promise.all(active.map((s) => s.flush()));
 }
@@ -255,10 +301,7 @@ export default function CaptureRoot() {
       } else {
         const streams = active;
         active = [];
-        stopStreams(streams);
-        for (const stream of streams) {
-          for (const track of stream.tracks) track.stop();
-        }
+        disposeStreams(streams);
       }
     };
 
@@ -268,7 +311,7 @@ export default function CaptureRoot() {
     void sc.invoke('capture:ready');
     return () => {
       unsubscribe();
-      stopStreams(active);
+      disposeStreams(active);
     };
   }, []);
 
