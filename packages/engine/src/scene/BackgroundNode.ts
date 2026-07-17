@@ -120,7 +120,10 @@ export class BackgroundNode extends Container {
       ctx.filter = 'none';
       this.setBaked(baked.canvas, gen);
       this.onAsyncBake?.();
-    } catch {
+    } catch (err) {
+      // Never silent: a swallowed bake error looks like a "random" background
+      // switch to the graphite fallback with no trail to follow.
+      console.warn(`background bake failed for ${url}:`, err);
       if (gen !== this.generation) return;
       if (fallbackOnError) {
         // Unloadable wallpaper asset: bake the graphite fallback so exports
