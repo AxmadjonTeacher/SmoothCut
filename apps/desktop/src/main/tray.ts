@@ -83,7 +83,13 @@ export class AppTray {
         enabled: !busy,
         click: () => this.deps.toggleRecording(),
       },
-      { label: 'Open Recorder', click: () => this.deps.openRecorder() },
+      {
+        label: 'Open Recorder',
+        // The toolbar deliberately stays hidden while a recording is live
+        // (it would end up in the shot) — don't offer to open it.
+        enabled: !recording && !busy,
+        click: () => this.deps.openRecorder(),
+      },
       {
         label: 'Recent Projects',
         submenu:
